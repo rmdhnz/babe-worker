@@ -12,10 +12,9 @@ DB_PORT = int(os.getenv("DB_PORT"))
 DB_NAME = os.getenv("DB_NAME")
 DB_USER = os.getenv("DB_USER")
 DB_PASS = os.getenv("DB_PASS")
-OUTLET_NAME = os.getenv("OUTLET_NAME")  # Contoh: "semarang"
 
 
-def get_outlet_id_by_name():
+def get_outlet_id_by_name(outlet):
     try:
         conn = pymysql.connect(
             host=DB_HOST,
@@ -26,7 +25,7 @@ def get_outlet_id_by_name():
             autocommit=True,
         )
         cursor = conn.cursor()
-        cursor.execute("SELECT id FROM outlets WHERE name = %s", (OUTLET_NAME,))
+        cursor.execute("SELECT id FROM outlets WHERE name = %s", (outlet,))
         result = cursor.fetchone()
         cursor.close()
         conn.close()
@@ -34,7 +33,7 @@ def get_outlet_id_by_name():
         if result:
             return result[0]
         else:
-            raise Exception(f"Outlet '{OUTLET_NAME}' not found in database.")
+            raise Exception(f"Outlet '{outlet}' not found in database.")
     except Exception as e:
         print(f"[{datetime.now()}] ❌ Error fetching outlet_id: {e}")
         exit(1)
