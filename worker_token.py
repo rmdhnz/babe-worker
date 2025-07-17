@@ -7,7 +7,7 @@ import schedule
 import requests
 from datetime import datetime
 from dotenv import load_dotenv
-from modules.crud_utility import get_outlet_id_by_name
+from modules.crud_utility import get_outlet_by_name
 
 # Load .env file
 load_dotenv()
@@ -17,13 +17,13 @@ APP_ID = os.getenv("APP_ID_SMG")
 SECRET_KEY = os.getenv("SECRET_KEY_SMG")
 DB_HOST = os.getenv("DB_HOST")
 DB_PORT = int(os.getenv("DB_PORT"))
-DB_NAME = os.getenv("DB_NAME")
-DB_USER = os.getenv("DB_USER")
-DB_PASS = os.getenv("DB_PASS")
+DB_NAME = os.getenv("DB_DATABASE")
+DB_USER = os.getenv("DB_USERNAME")
+DB_PASS = os.getenv("DB_PASSWORD")
 OUTLET_SEMARANG = os.getenv("OUTLET_NAME_SEMARANG")
 OUTLET_SOLO = os.getenv("OUTLET_NAME_SOLO")
-OUTLET_ID_SOLO = get_outlet_id_by_name(OUTLET_SOLO)
-OUTLET_ID_SMG = get_outlet_id_by_name(OUTLET_SEMARANG)
+OUTLET_ID_SOLO = get_outlet_by_name(OUTLET_SOLO).json()[0]["id"]
+OUTLET_ID_SMG = get_outlet_by_name(OUTLET_SEMARANG).json()[0]["id"]
 TOKEN_FILE_PATH_SOLO = os.getenv("TOKEN_FILE_PATH_SOLO")
 
 
@@ -37,7 +37,7 @@ def get_token_from_file(access_token):
             )
             return token, timestamp
     except Exception as e:
-        print(f"[{datetime.now()}] ❌ Failed to read token file: {e}")
+        print(f"[{datetime.now()}] Failed to read token file: {e}")
         return None, None
 
 
@@ -50,9 +50,9 @@ def get_access_token(app_id, secret_key):
         response.raise_for_status()
         return response.json()["access_token"]
     except requests.exceptions.HTTPError as http_err:
-        print(f"[{datetime.now()}] ❌ HTTP error: {http_err} - {response.text}")
+        print(f"[{datetime.now()}] HTTP error: {http_err} - {response.text}")
     except Exception as err:
-        print(f"[{datetime.now()}] ❌ General error: {err}")
+        print(f"[{datetime.now()}] General error: {err}")
     return None
 
 
@@ -108,7 +108,6 @@ def insert_token_to_db(token: str, outlet_id, timestamp: str = None):
 def job():
     print(f"[{datetime.now()}] Fetching access token...")
     token_smg = get_access_token(APP_ID, SECRET_KEY)
-    token_solo = get_token_from_file(TOKEN_FILE_PATH_SOLO)
     token_solo, ts_solo = get_token_from_file(TOKEN_FILE_PATH_SOLO)
     if token_smg and token_solo:
         insert_token_to_db(token_smg, OUTLET_ID_SMG)
