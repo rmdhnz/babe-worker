@@ -52,6 +52,17 @@ def get_outlet_name(outlet_id: int) -> str:
     return result[0]
 
 
+def get_outlet_by_name(name):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM outlets WHERE name={}".format(name))
+    result = cursor.fetchall()
+    columns = [desc[0] for desc in cursor.description]
+    cursor.close()
+    conn.close()
+    return OutletResult(result, columns)
+
+
 def get_all_outlets():
     try:
         conn = get_db_connection()

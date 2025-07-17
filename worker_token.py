@@ -7,7 +7,6 @@ import schedule
 import requests
 from datetime import datetime
 from dotenv import load_dotenv
-from modules.crud_utility import get_outlet_by_name
 
 # Load .env file
 load_dotenv()
@@ -22,8 +21,8 @@ DB_USER = os.getenv("DB_USERNAME")
 DB_PASS = os.getenv("DB_PASSWORD")
 OUTLET_SEMARANG = os.getenv("OUTLET_NAME_SEMARANG")
 OUTLET_SOLO = os.getenv("OUTLET_NAME_SOLO")
-OUTLET_ID_SOLO = get_outlet_by_name(OUTLET_SOLO).json()[0]["id"]
-OUTLET_ID_SMG = get_outlet_by_name(OUTLET_SEMARANG).json()[0]["id"]
+OUTLET_ID_SOLO = os.getenv("OUTLET_ID_SOLO")
+OUTLET_ID_SMG = os.getenv("OUTLET_ID_SMG")
 TOKEN_FILE_PATH_SOLO = os.getenv("TOKEN_FILE_PATH_SOLO")
 
 
