@@ -95,6 +95,51 @@ def fetch_products_page(token: str, page: int, per_page: int = 15):
         return None
 
 
+def fetch_combos_page(token, page=1, per_page=15):
+    url = f"https://api-open.olsera.co.id/api/open-api/v1/en/productcombo"
+    headers = {"Authorization": f"Bearer {token}"}
+    params = {"page": page, "per_page": per_page}
+    response = requests.get(url, headers=headers, params=params)
+    if response.status_code == 429:
+        print("[WARNING] Rate limited (429), menunggu 20 detik...")
+        time.sleep(20)
+        return fetch_combos_page(token, page)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"[ERROR] API failed: {response.status_code} - {response.text}")
+        return None
+
+
+def fetch_combo_detail(token, combo_id):
+    import time
+
+    url = "https://api-open.olsera.co.id/api/open-api/v1/en/productcombo/detail"
+    headers = {"Authorization": f"Bearer {token}"}
+    params = {"id": combo_id}
+
+    max_retries = 5
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(url, headers=headers, params=params)
+            if response.status_code == 429:
+                wait = 10 + attempt * 5
+                print(f"[RATE LIMIT] 429 Too Many Requests, retrying after {wait}s...")
+                time.sleep(wait)
+                continue
+            response.raise_for_status()
+            return response.json().get("data", {})
+        except requests.exceptions.HTTPError as http_err:
+            print(
+                f"[ERROR] HTTP error saat fetch combo detail ID {combo_id}: {http_err}"
+            )
+            break
+        except Exception as err:
+            print(f"[ERROR] Unknown error saat fetch combo detail ID {combo_id}: {err}")
+            break
+    return {}
+
+
 class OutletResult:
     def __init__(self, result, columns):
         self.result = result
