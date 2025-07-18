@@ -6,6 +6,13 @@ from modules.crud_utility import (
     fetch_products_page,
 )
 
+allowed_klasifikasi = [
+    "Inventory Produk",
+    "Inventory Mixer",
+    "Inventory Snack",
+    "Inventory Rokok",
+]
+
 
 def sync_product_stocks(outlet_id: int):
     token = get_token_by_outlet_id(outlet_id)
@@ -31,6 +38,8 @@ def sync_product_stocks(outlet_id: int):
         conn = get_db_connection()
         with conn.cursor() as cursor:
             for item in data:
+                if item.get("klasifikasi") not in allowed_klasifikasi:
+                    continue
                 olsera_id = item["id"]
                 has_variant = item.get("has_variant", False)
                 stock_qty = (

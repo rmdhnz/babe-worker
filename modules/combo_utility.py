@@ -57,7 +57,7 @@ def sync_combos(outlet_id: int):
                 name = combo["name"]
                 description = combo.get("description")
                 image = combo.get("photo_md")
-                price = float(combo.get("max_sell_price") or 0)
+                price = float(combo.get("sell_price_pos") or 0)
 
                 # Upsert combo
                 cursor.execute(
@@ -169,11 +169,14 @@ def sync_combos(outlet_id: int):
 def sync_combo_stocks(outlet_id: int):
     conn = get_db_connection()
     with conn.cursor() as cursor:
-        cursor.execute("SELECT id FROM combos WHERE outlet_id = %s", (outlet_id,))
+        cursor.execute("SELECT id, name FROM combos WHERE outlet_id = %s", (outlet_id,))
         all_combos = cursor.fetchall()
         total_updated = 0
 
-        for (combo_id,) in all_combos:
+        for combo_id, name in all_combos:
+            if should_exclude(name):
+                continue
+
             cursor.execute(
                 """
                 SELECT cp.product_id, cp.qty, ps.stock_qty
@@ -208,8 +211,48 @@ def sync_combo_stocks(outlet_id: int):
 
             total_updated += 1
 
+    print(f"Total combo stock updated: {total_updated}")
+
+
+def update_combo_prices(outlet_id: int):
+    token = get_token_by_outlet_id(outlet_id)
+    outlet_name = get_outlet_name(outlet_id)
+
+    print(f"Updating combo prices for outlet: {outlet_name} ({outlet_id})")
+
+    conn = get_db_connection()
+    total_updated = 0
+    page = 1
+
+    while True:
+        result = fetch_combos_page(token, page, per_page=100)
+        if result is None:
+            print(f"Failed to fetch page {page}, retrying in 15s...")
+            time.sleep(15)
+            continue
+
+        data = result.get("data", [])
+        if not data:
+            break
+
+        with conn.cursor() as cursor:
+            for combo in data:
+                if should_exclude(combo["name"]):
+                    continue
+                olsera_id = combo["id"]
+                price = float(combo.get("sell_price_pos") or 0)
+
+                cursor.execute(
+                    """
+                    UPDATE combos
+                    SET price = %s, updated_at = NOW()
+                    WHERE olsera_id = %s AND outlet_id = %s
+                    """,
+                    (price, olsera_id, outlet_id),
+                )
+                total_updated += cursor.rowcount
+
+        page += 1
+
     conn.commit()
-    conn.close()
-    print(
-        f"[COMBO STOCK SYNCED - OUTLET {outlet_id}] Total combo updated: {total_updated}"
-    )
+    print(f"Finished updating combo prices. Total updated: {total_updated}")
