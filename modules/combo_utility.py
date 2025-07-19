@@ -57,7 +57,9 @@ def sync_combos(outlet_id: int):
                 name = combo["name"]
                 description = combo.get("description")
                 image = combo.get("photo_md")
-                price = float(combo.get("sell_price_pos") or 0)
+                price = float(
+                    combo.get("sell_price_pos") or combo.get("max_sell_price") or 0
+                )
 
                 # Upsert combo
                 cursor.execute(

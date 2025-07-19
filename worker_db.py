@@ -27,6 +27,6 @@ def run_scheduler():
 
 if __name__ == "__main__":
     print("Worker DB (Produk Keseluruhan) is running...")
-    job_daily()
+    # job_daily()
     schedule.every().day.at("00:00").do(job_daily)
     threading.Thread(target=run_scheduler).start()
