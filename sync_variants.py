@@ -72,11 +72,10 @@ def sync_product_variants(outlet_id: int):
 def job():
     try:
         print("START UPDATE VARIANT")
-        sync_product_variants(5)
-        exit()
         all_outlets = get_all_outlets().json()
         for outlet in all_outlets:
             sync_product_variants(outlet_id=outlet["id"])
+        print("ANJAY KELAR")
     except Exception as e:
         print(f"[ERROR] [{e}]")
 
