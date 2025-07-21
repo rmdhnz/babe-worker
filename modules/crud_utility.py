@@ -28,6 +28,17 @@ def get_db_connection():
     )
 
 
+def get_all_tokens():
+    conn = get_db_connection()
+    with conn.cursor() as cursor:
+        cursor.execute("SELECT outlet_id, token FROM token_caches")
+        result = cursor.fetchall()
+        columns = [desc[0] for desc in cursor.description]
+        cursor.close()
+    conn.close()
+    return OutletResult(result, columns)
+
+
 def get_token_by_outlet_id(outlet_id: int) -> str:
     conn = get_db_connection()
     with conn.cursor() as cursor:
