@@ -14,6 +14,66 @@ allowed_klasifikasi = [
 ]
 
 
+def sync_merchandises(outlet_id: int):
+    token = get_token_by_outlet_id(outlet_id)
+    outlet_name = get_outlet_name(outlet_id)
+
+    page = 1
+    total_synced = 0
+
+    while True:
+        result = fetch_products_page(token, page, per_page=100)
+        if result is None:
+            print(f"[{outlet_name}] [RATE LIMIT] Retrying page {page} after 20s...")
+            time.sleep(20)
+            continue
+
+        if not result.get("data"):
+            break
+
+        data = result["data"]
+        meta = result.get("meta", {})
+        last_page = meta.get("last_page", page)
+
+        conn = get_db_connection()
+        with conn.cursor() as cursor:
+            for item in data:
+                klasifikasi = item.get("klasifikasi")
+                if klasifikasi in allowed_klasifikasi:
+                    continue
+
+                olsera_id = item["id"]
+                name = item["name"]
+                # Upsert ke tabel products
+                cursor.execute(
+                    """
+                    INSERT INTO merchandises (olsera_id, outlet_id, name, koin, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, NOW(), NOW())
+                    ON DUPLICATE KEY UPDATE 
+                        name = VALUES(name),
+                        koin = VALUES(koin),
+                        updated_at = NOW()
+                    """,
+                    (
+                        olsera_id,
+                        outlet_id,
+                        name,
+                        0,  # Koin default 0 untuk merchandise
+                    ),
+                )
+                total_synced += 1
+
+        conn.commit()
+        conn.close()
+
+        print(f"PRODUK | [{outlet_name}] Page {page} selesai.")
+        if page >= last_page:
+            break
+        page += 1
+
+    print(f"[{outlet_name}] Total produk tersinkronisasi: {total_synced}")
+
+
 def sync_products_all(outlet_id: int):
     token = get_token_by_outlet_id(outlet_id)
     outlet_name = get_outlet_name(outlet_id)
