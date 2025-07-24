@@ -14,6 +14,63 @@ allowed_klasifikasi = [
 ]
 
 
+def sync_ongkir(outlet_id: int):
+    token = get_token_by_outlet_id(outlet_id)
+    outlet_name = get_outlet_name(outlet_id)
+    page = 1
+    total_synced = 0
+
+    while True:
+        result = fetch_products_page(token, page, per_page=100)
+        if result is None:
+            print(f"[{outlet_name}] [RATE LIMIT] Retrying page {page} after 20s...")
+            time.sleep(20)
+            continue
+        if not result.get("data"):
+            break
+
+        data = result["data"]
+        meta = result.get("meta", {})
+        last_page = meta.get("last_page", page)
+
+        conn = get_db_connection()
+        with conn.cursor() as cursor:
+            for item in data:
+                name = item.get("name", "").lower()
+                if "ongkir" not in name:
+                    continue
+
+                olsera_id = item["id"]
+
+                # Upsert ke tabel merchandises
+                cursor.execute(
+                    """
+                    INSERT INTO ongkirs (olsera_id, outlet_id, name, price, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, NOW(), NOW())
+                    ON DUPLICATE KEY UPDATE 
+                        name = VALUES(name),
+                        updated_at = NOW()
+                    """,
+                    (
+                        olsera_id,
+                        outlet_id,
+                        item["name"],
+                        item["sell_price_pos"],
+                    ),  # koin default
+                )
+                total_synced += 1
+
+        conn.commit()
+        conn.close()
+
+        print(f"ONGKIR | [{outlet_name}] Page {page} selesai.")
+        if page >= last_page:
+            break
+        page += 1
+
+    print(f"[{outlet_name}] Total produk ONGKIR tersinkronisasi: {total_synced}")
+
+
 def sync_merchandises(outlet_id: int):
     token = get_token_by_outlet_id(outlet_id)
     outlet_name = get_outlet_name(outlet_id)
