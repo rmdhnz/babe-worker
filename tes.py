@@ -1,8 +1,11 @@
-from modules.crud_utility import get_all_products_with_stock
+from modules.models_sqlalchemy import Cart
+from sqlalchemy.orm import sessionmaker
+from modules.sqlalchemy_setup import SessionLocal, engine
 
-products = get_all_products_with_stock()
+SessionLocal = sessionmaker(bind=engine)
+session = SessionLocal()
 
+carts = session.query(Cart).filter(Cart.user_id == 18, Cart.outlet_id == 1).all()
 
-for product in products:
-    print(f"ID: {product.id}, Name: {product.name}, Stock: {product.stock.stock_qty}")
-    print(f"Variants : {product.variants}")
+for cart in carts:
+    print(cart.name)
