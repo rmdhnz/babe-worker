@@ -1,20 +1,8 @@
-import pymysql
-from dotenv import load_dotenv
-import os
+from modules.crud_utility import get_all_products_with_stock
 
-load_dotenv(dotenv_path="/root/babe-worker/.env")
-DB_USER = os.getenv("DB_USERNAME")
-DB_PASS = os.getenv("DB_PASSWORD")
-try:
-    conn = pymysql.connect(
-        host=os.getenv("DB_HOST"),
-        port=int(os.getenv("DB_PORT")),
-        user=os.getenv("DB_USERNAME"),
-        password=os.getenv("DB_PASSWORD"),
-        database=os.getenv("DB_DATABASE"),
-    )
-    print("DB_USER:", DB_USER)
-    print("DB_PASS:", repr(DB_PASS))
-    print("✅ Sukses konek ke MySQL!")
-except Exception as e:
-    print("❌ Gagal konek ke MySQL:", e)
+products = get_all_products_with_stock()
+
+
+for product in products:
+    print(f"ID: {product.id}, Name: {product.name}, Stock: {product.stock.stock_qty}")
+    print(f"Variants : {product.variants}")
