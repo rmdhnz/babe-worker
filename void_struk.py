@@ -5,53 +5,6 @@ import json
 
 access_tokens = get_all_tokens().json()
 
-order_ids = [
-    "983023208",
-    "983059709",
-    "983070654",
-    "983073928",
-    "983090035",
-    "983093617",
-    "983094879",
-    "983100441",
-    "983178305",
-    "983184535",
-    "983194391",
-    "983210868",
-    "983215903",
-    "983217354",
-    "983225135",
-    "983278994",
-    "983599031",
-    "983939221",
-    "984083930",
-    "984092142",
-    "984104546",
-    "984105072",
-    "984105487",
-    "984105928",
-    "984109516",
-    "984110406",
-    "984111496",
-    "984112493",
-    "984113279",
-    "984114903",
-    "984115838",
-    "984121778",
-    "984122313",
-    "984122896",
-    "984123380",
-    "984123760",
-    "984124266",
-    "984125564",
-    "984133876",
-    "984144753",
-    "984145946",
-    "984148186",
-    "984164101",
-    "984166854",
-]
-
 
 def _update_status(order_id: str, status: str, access_token: str) -> None:
     url = (
@@ -166,10 +119,6 @@ def save_orders_to_json(orders: list, filename: str = "open_orders_OL.json"):
     print(f"[SUCCESS] Saved {len(orders)} orders to {filename}")
 
 
-# # === PAKAI FUNGSI ===
-# outlet_id = 1  # ganti jika perlu
-# filtered_orders = fetch_filtered_order_ids(outlet_id)
-# save_orders_to_json(filtered_orders)
 def update_all_orders_to_X(json_path: str, outlet_id: int):
     with open(json_path, "r") as f:
         orders = json.load(f)
@@ -184,4 +133,7 @@ def update_all_orders_to_X(json_path: str, outlet_id: int):
 
 
 if __name__ == "__main__":
-    update_all_orders_to_X("open_orders_OL.json", outlet_id=1)
+    outlet_id = 1  # ganti sesuai kebutuhan
+    # orders = fetch_filtered_order_ids(outlet_id)
+    # save_orders_to_json(orders, filename="open_orders_OL.json")
+    update_all_orders_to_X("open_orders_OL.json", 1)
