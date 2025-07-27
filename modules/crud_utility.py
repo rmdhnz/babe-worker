@@ -447,6 +447,24 @@ def add_prod_to_order(
         print(f"Other error occurred on product inputting: {err}")
 
 
+def fetch_product_combo_details(combo_id: str, access_token: str):
+    url = "https://api-open.olsera.co.id/api/open-api/v1/en/productcombo/detail"
+    params = {
+        "id": combo_id,
+    }
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    try:
+        response = requests.get(url, params=params, headers=headers)
+        response.raise_for_status()  # Raise error kalau bukan status 200-an
+        return response.json()
+    except requests.exceptions.HTTPError as http_err:
+        print(f"HTTP error occurred: {http_err} - Response: {response.text}")
+    except Exception as err:
+        print(f"Other error occurred: {err}")
+
+
 class OutletResult:
     def __init__(self, result, columns):
         self.result = result
