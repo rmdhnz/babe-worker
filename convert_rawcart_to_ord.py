@@ -2,8 +2,6 @@ from modules.crud_utility import *
 from modules.maps_utility import *
 import requests
 from modules.models_sqlalchemy import Cart
-from sqlalchemy.orm import sessionmaker
-from modules.sqlalchemy_setup import engine
 from collections import defaultdict
 
 
@@ -87,13 +85,6 @@ class StrukMaker:
         except Exception as e:
             return False, f"Gagal mengambil detail order: {e}"
 
-        if len(orders) != len(carts):
-            print("Jumlah item order dan cart tidak sama. Tidak bisa update diskon.")
-            return (
-                False,
-                "Jumlah item order dan cart tidak sama. Tidak bisa update diskon.",
-            )
-
         for order_item in orders:
             prodvar_id = order_item.get("product_variant_id") or order_item.get(
                 "product_id"
@@ -110,7 +101,7 @@ class StrukMaker:
                     order_id=str(order_id),
                     id=str(order_item["id"]),
                     disc=str(cart_item.discount),
-                    price=str(cart_item.harga_total - cart_item.discount),
+                    price=str(cart_item.harga_total),
                     qty=str(order_item["qty"]),
                     note="",
                     access_token=access_token,
@@ -144,8 +135,6 @@ class StrukMaker:
 
     def handle_order(self, raw_cart):
         access_token = get_token_by_outlet_id(raw_cart["outlet_id"])
-        SessionLocal = sessionmaker(bind=engine)
-        session = SessionLocal()
 
         # 1. Create order
         customer = cek_kastamer(
@@ -171,39 +160,48 @@ class StrukMaker:
             print(f"Gagal membuat order: {e}")
             return None, None, f"Gagal membuat order: {e}"
 
-        ongkir_name = distance_cost_rule(raw_cart["jarak"], raw_cart["is_free_ongkir"])
-        id_ongkir = search_ongkir_related_product(ongkir_name, access_token)
-
-        if ongkir_name != "Gratis Ongkir":
-            add_prod_to_order(
-                order_id=order_id,
-                product_id=id_ongkir,
-                quantity=1,
-                access_token=access_token,
-            )
-        else:
-            pass
+        # ongkir_name = distance_cost_rule(raw_cart["jarak"], raw_cart["is_free_ongkir"])
+        # id_ongkir = search_ongkir_related_product(ongkir_name, access_token)
 
         # 2. Masukkan item ke cart
-        carts = (
-            session.query(Cart)
-            .filter(
-                Cart.user_id == raw_cart["user_id"],
-                Cart.outlet_id == raw_cart["outlet_id"],
-            )
-            .all()
-        )
+        carts = raw_cart["cells"]
 
-        # AGGREGASI CART BY PRODVAR
+        main_products = []
+        additional_products = []
+
+        for cart in carts:
+
+            if cart.get("prodvar_id"):
+                main_products.append(
+                    {
+                        "prodvar_id": cart["prodvar_id"],
+                        "name": cart["name"],
+                        "qty": cart["qty"],
+                        "product_type_id": cart["product_type_id"],
+                        "disc": float(cart.get("discount") or 0),
+                    }
+                )
+            else:
+                additional_products.append(
+                    {
+                        "product_id": cart["id"],
+                        "name": cart["name"],
+                        "qty": cart["qty"],
+                        "product_type_id": cart["product_type_id"],
+                        "disc": float(cart.get("discount") or 0),
+                    }
+                )
+
+        # 2. AGGREGASI CART BY PRODVAR
         aggregated_carts = self.aggregate_cart_by_prodvar(
             [
                 {
-                    "prodvar_id": cart.prodvar_id,
-                    "name": cart.name,
-                    "qty": cart.quantity,
-                    "disc": float(cart.discount or 0),
+                    "prodvar_id": cart["prodvar_id"],
+                    "name": cart["name"],
+                    "qty": cart["qty"],
+                    "disc": float(cart.get("discount", 0)),
                 }
-                for cart in carts
+                for cart in main_products
             ]
         )
 
@@ -227,6 +225,33 @@ class StrukMaker:
             order_id,
             access_token=access_token,
         )
+        for add_item in additional_products:
+            print(f"Additional product : {add_item['name']}")
+            try:
+                if add_item["product_type_id"] == 3:
+                    combo_details = fetch_product_combo_details(
+                        add_item["product_id"], access_token
+                    )
+                    combo_items = combo_details["data"]["items"]["data"]
+                    for item in combo_items:
+                        add_prod_to_order(
+                            order_id=order_id,
+                            product_id=item.get("product_id"),
+                            quantity=1,
+                            access_token=access_token,
+                        )
+                else:
+                    add_prod_to_order(
+                        order_id=order_id,
+                        product_id=add_item["product_id"],
+                        quantity=1,
+                        access_token=access_token,
+                    )
+            except Exception as e:
+                print(
+                    f"Gagal menambahkan produk tambahan yaitu {add_item['name']}: {e}"
+                )
+
         if not success:
             return None, None, msg
         # 5. Update ongkir

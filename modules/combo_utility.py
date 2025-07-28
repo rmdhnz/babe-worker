@@ -204,7 +204,7 @@ def sync_combo_stocks(outlet_id: int):
 
             cursor.execute(
                 """
-                INSERT INTO combo_stock (combo_id, stock_qty, created_at, updated_at)
+                INSERT INTO combo_stocks (combo_id, stock_qty, created_at, updated_at)
                 VALUES (%s, %s, NOW(), NOW())
                 ON DUPLICATE KEY UPDATE stock_qty = VALUES(stock_qty), updated_at = NOW()
                 """,

@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from typing import List, Literal
+from typing import List, Literal, Optional
 from convert_rawcart_to_ord import StrukMaker
 
 app = FastAPI()
@@ -8,8 +8,15 @@ app = FastAPI()
 
 class Cell(BaseModel):
     id: int
+    prodvar_id: Optional[str] = None
     name: str
     type: Literal["item", "paket"]
+    product_type_id: int
+    discount: float = 0.0
+    harga_satuan: Optional[int] = 0.0
+    harga_total: Optional[int] = 0.0
+    variant_id: Optional[int] = None
+    variant: Optional[str] = None
     qty: int
 
 
