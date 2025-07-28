@@ -101,7 +101,7 @@ class StrukMaker:
                     order_id=str(order_id),
                     id=str(order_item["id"]),
                     disc=str(cart_item.discount),
-                    price=str(cart_item.harga_total - cart_item.discount),
+                    price=str(cart_item.harga_total),
                     qty=str(order_item["qty"]),
                     note="",
                     access_token=access_token,
