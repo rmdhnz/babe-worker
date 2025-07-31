@@ -100,33 +100,6 @@ class StrukMaker:
                 )
             except Exception as e:
                 return False, "Gagal update detail paket di order."
-
-        # for order_item in orders:
-        #     print(order_item["id"])
-        #     prodvar_id = order_item.get("product_variant_id") or order_item.get(
-        #         "product_id"
-        #     )
-        #     cart_item = next(
-        #         (c for c in carts if c.prodvar_id == prodvar_id),
-        #         None,
-        #     )
-        #     if cart_item is None:
-        #         continue
-
-        #     try:
-        #         print(f"Mulai update order detail {cart_item.name}")
-        #         update_order_detail(
-        #             order_id=str(order_id),
-        #             id=str(order_item["id"]),
-        #             disc=str(cart_item.discount),
-        #             price=str(cart_item.harga_total),
-        #             qty=str(order_item["qty"]),
-        #             note="",
-        #             access_token=access_token,
-        #         )
-        #     except Exception as e:
-        #         print(f"Gagal update detail paket di order. Error: {e}")
-        #         return False, f"Gagal update detail paket di order. Error: {e}"
         print(
             "Semua item berhasil dipindahkan ke order dan diskon paket telah diperbarui."
         )
@@ -188,9 +161,6 @@ class StrukMaker:
             print(f"Gagal membuat order: {e}")
             return None, None, f"Gagal membuat order: {e}"
 
-        # ongkir_name = distance_cost_rule(raw_cart["jarak"], raw_cart["is_free_ongkir"])
-        # id_ongkir = search_ongkir_related_product(ongkir_name, access_token)
-
         # 2. Masukkan item ke cart
         carts = raw_cart["cells"]
 
@@ -223,21 +193,7 @@ class StrukMaker:
         # 2. AGGREGASI CART BY PRODVAR
         aggregated_carts = self.aggregate_cart_by_prodvar(main_products)
 
-        # 3. Konversi hasil agregasi ke dict {product_id: Cart-like}
-        # carts_by_product_id = {}
-        # for agg in aggregated_carts:
-        #     carts_by_product_id[agg["prodvar_id"]] = Cart(
-        #         prodvar_id=agg["prodvar_id"],
-        #         name=agg["name"],
-        #         quantity=agg["qty"],
-        #         discount=agg["disc"],
-        #         harga_total=agg["harga_total"],  # isi sesuai kebutuhan
-        #         product_id=agg["product_id"],  # jika prodvar_id sama dengan product_id
-        #         user_id=raw_cart["user_id"],
-        #         outlet_id=raw_cart["outlet_id"],
-        #     )
-
-        # 4. Move aggregated cart to order
+        # 3. Move aggregated cart to order
         success, msg = self.move_cart_to_order(
             aggregated_carts,
             order_id,
@@ -272,5 +228,4 @@ class StrukMaker:
 
         if not success:
             return None, None, msg
-        # 5. Update ongkir
         return order_id, order_no, "Order berhasil dibuat dan ongkir telah diperbarui."
