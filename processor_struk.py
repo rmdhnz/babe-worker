@@ -12,7 +12,7 @@ class Cell(BaseModel):
     name: str
     type: Literal["item", "paket"]
     product_type_id: int
-    discount: float = 0.0
+    disc: float = 0.0
     harga_satuan: Optional[int] = 0.0
     harga_total: Optional[int] = 0.0
     variant_id: Optional[int] = None
