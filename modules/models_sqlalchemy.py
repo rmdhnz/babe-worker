@@ -132,3 +132,9 @@ class Outlet(Base):
 
     # Relasi ke cart
     carts = relationship("Cart", back_populates="outlet")
+
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(BigInteger, primary_key=True)
+    name = Column(String(255), nullable=False)

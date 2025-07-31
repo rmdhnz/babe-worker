@@ -1,8 +1,9 @@
 from modules.crud_utility import *
 from modules.maps_utility import *
 import requests
-from modules.models_sqlalchemy import Cart
+from modules.models_sqlalchemy import User
 from collections import defaultdict
+from modules.sqlalchemy_setup import session
 
 
 def search_ongkir_related_product(keywords: str, access_token: str) -> tuple:
@@ -32,23 +33,19 @@ class StrukMaker:
     def __init__(self):
         self.variant_priority_order = ["C", "P", "L", "X"]
 
-    def move_cart_to_order(
-        self, carts_by_product_id: dict, order_id: str, access_token: str
-    ):
+    def move_cart_to_order(self, cart: dict, order_id: str, access_token: str):
         """
         Pindahkan semua item dalam cart ke order dengan ID order_id.
         carts_by_product_id: dict {product_id: Cart}
         """
-        if not carts_by_product_id:
+        if not cart:
             print("Cart kosong, tidak ada item untuk dipindahkan.")
             return False, "Cart kosong, tidak ada item untuk dipindahkan."
 
-        carts = list(carts_by_product_id.values())
-
         # Tambahkan produk ke order
-        for item in carts:
-            prodvar_id = item.prodvar_id
-            qty = item.quantity
+        for item in cart:
+            prodvar_id = item["prodvar_id"]
+            qty = item["qty"]
             try:
                 resp = add_prod_to_order(
                     order_id, prodvar_id, qty, access_token=access_token
@@ -85,31 +82,54 @@ class StrukMaker:
         except Exception as e:
             return False, f"Gagal mengambil detail order: {e}"
 
-        for order_item in orders:
-            prodvar_id = order_item.get("product_variant_id") or order_item.get(
-                "product_id"
-            )
-            cart_item = next(
-                (c for c in carts if c.prodvar_id == prodvar_id),
-                None,
-            )
-            if cart_item is None:
-                continue
+        for idx, item in enumerate(orders):
+            item_id = item["id"]
+            item_qty = item["qty"]
+            item_disc = cart[idx]["disc"] if idx < len(cart) else 0.0
+            item_price = int(float(item.get("fprice", 0).replace(".", "")))
 
             try:
                 update_order_detail(
                     order_id=str(order_id),
-                    id=str(order_item["id"]),
-                    disc=str(cart_item.discount),
-                    price=str(cart_item.harga_total),
-                    qty=str(order_item["qty"]),
-                    note="",
+                    id=str(item_id),
+                    disc=str(item_disc),
+                    price=str(item_price),
+                    qty=str(item_qty),
+                    note="Promo Paket",
                     access_token=access_token,
                 )
             except Exception as e:
-                print(f"Gagal update detail paket di order. Error: {e}")
-                return False, f"Gagal update detail paket di order. Error: {e}"
+                return False, "Gagal update detail paket di order."
 
+        # for order_item in orders:
+        #     print(order_item["id"])
+        #     prodvar_id = order_item.get("product_variant_id") or order_item.get(
+        #         "product_id"
+        #     )
+        #     cart_item = next(
+        #         (c for c in carts if c.prodvar_id == prodvar_id),
+        #         None,
+        #     )
+        #     if cart_item is None:
+        #         continue
+
+        #     try:
+        #         print(f"Mulai update order detail {cart_item.name}")
+        #         update_order_detail(
+        #             order_id=str(order_id),
+        #             id=str(order_item["id"]),
+        #             disc=str(cart_item.discount),
+        #             price=str(cart_item.harga_total),
+        #             qty=str(order_item["qty"]),
+        #             note="",
+        #             access_token=access_token,
+        #         )
+        #     except Exception as e:
+        #         print(f"Gagal update detail paket di order. Error: {e}")
+        #         return False, f"Gagal update detail paket di order. Error: {e}"
+        print(
+            "Semua item berhasil dipindahkan ke order dan diskon paket telah diperbarui."
+        )
         return (
             True,
             "Semua item berhasil dipindahkan ke order dan diskon paket telah diperbarui.",
@@ -118,7 +138,14 @@ class StrukMaker:
     def aggregate_cart_by_prodvar(self, cart: list) -> list:
         # Aggregation by prodvar_id
         agg_by_prodvar = defaultdict(
-            lambda: {"prodvar_id": None, "name": None, "qty": 0, "disc": 0.0}
+            lambda: {
+                "prodvar_id": None,
+                "name": None,
+                "qty": 0,
+                "disc": 0.0,
+                "harga_satuan": 0.0,
+                "harga_total": 0.0,
+            }
         )
 
         for item in cart:
@@ -126,15 +153,16 @@ class StrukMaker:
             if agg_by_prodvar[pvar]["prodvar_id"] is None:
                 agg_by_prodvar[pvar]["prodvar_id"] = pvar
                 agg_by_prodvar[pvar]["name"] = item["name"]
-            agg_by_prodvar[pvar]["qty"] += item["qty"]
-            agg_by_prodvar[pvar]["disc"] += float(item["disc"])
+                agg_by_prodvar[pvar]["product_id"] = item["product_id"]
 
-        # Convert to list and display
+            agg_by_prodvar[pvar]["qty"] += item["qty"]
+            agg_by_prodvar[pvar]["disc"] += float(item.get("disc", 0))
         aggregated_by_prodvar = list(agg_by_prodvar.values())
         return aggregated_by_prodvar
 
     def handle_order(self, raw_cart):
         access_token = get_token_by_outlet_id(raw_cart["outlet_id"])
+        user = session.query(User).filter(User.id == raw_cart["user_id"]).first()
 
         # 1. Create order
         customer = cek_kastamer(
@@ -146,7 +174,7 @@ class StrukMaker:
         today_str = datetime.now().strftime("%Y-%m-%d")
 
         try:
-            print("Membuat order...")
+            print(f"Membuat order atas nama {user.name}...")
             order_id, order_no = create_order(
                 order_date=today_str,
                 customer_id=customer[0] if customer else None,
@@ -170,15 +198,15 @@ class StrukMaker:
         additional_products = []
 
         for cart in carts:
-
             if cart.get("prodvar_id"):
                 main_products.append(
                     {
+                        "product_id": cart["id"],
                         "prodvar_id": cart["prodvar_id"],
                         "name": cart["name"],
                         "qty": cart["qty"],
                         "product_type_id": cart["product_type_id"],
-                        "disc": float(cart.get("discount") or 0),
+                        "disc": float(cart["disc"] or 0),
                     }
                 )
             else:
@@ -188,40 +216,30 @@ class StrukMaker:
                         "name": cart["name"],
                         "qty": cart["qty"],
                         "product_type_id": cart["product_type_id"],
-                        "disc": float(cart.get("discount") or 0),
+                        "disc": float(cart.get("disc") or 0),
                     }
                 )
 
         # 2. AGGREGASI CART BY PRODVAR
-        aggregated_carts = self.aggregate_cart_by_prodvar(
-            [
-                {
-                    "prodvar_id": cart["prodvar_id"],
-                    "name": cart["name"],
-                    "qty": cart["qty"],
-                    "disc": float(cart.get("discount", 0)),
-                }
-                for cart in main_products
-            ]
-        )
+        aggregated_carts = self.aggregate_cart_by_prodvar(main_products)
 
         # 3. Konversi hasil agregasi ke dict {product_id: Cart-like}
-        carts_by_product_id = {}
-        for agg in aggregated_carts:
-            carts_by_product_id[agg["prodvar_id"]] = Cart(
-                prodvar_id=agg["prodvar_id"],
-                name=agg["name"],
-                quantity=agg["qty"],
-                discount=agg["disc"],
-                harga_total=0,  # isi sesuai kebutuhan
-                product_id=agg["prodvar_id"],  # jika prodvar_id sama dengan product_id
-                user_id=raw_cart["user_id"],
-                outlet_id=raw_cart["outlet_id"],
-            )
+        # carts_by_product_id = {}
+        # for agg in aggregated_carts:
+        #     carts_by_product_id[agg["prodvar_id"]] = Cart(
+        #         prodvar_id=agg["prodvar_id"],
+        #         name=agg["name"],
+        #         quantity=agg["qty"],
+        #         discount=agg["disc"],
+        #         harga_total=agg["harga_total"],  # isi sesuai kebutuhan
+        #         product_id=agg["product_id"],  # jika prodvar_id sama dengan product_id
+        #         user_id=raw_cart["user_id"],
+        #         outlet_id=raw_cart["outlet_id"],
+        #     )
 
         # 4. Move aggregated cart to order
         success, msg = self.move_cart_to_order(
-            carts_by_product_id,
+            aggregated_carts,
             order_id,
             access_token=access_token,
         )
