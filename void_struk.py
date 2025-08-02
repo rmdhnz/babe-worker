@@ -6,29 +6,6 @@ import json
 access_tokens = get_all_tokens().json()
 
 
-def _update_status(order_id: str, status: str, access_token: str) -> None:
-    url = (
-        "https://api-open.olsera.co.id/api/open-api/v1/en/order/openorder/updatestatus"
-    )
-    params = {"order_id": order_id, "status": status}
-
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json",
-    }
-
-    try:
-        response = requests.post(url, json=params, headers=headers)
-        response.raise_for_status()  # Akan memunculkan exception jika status bukan 2xx
-        return response.json()
-    except requests.exceptions.HTTPError as http_err:
-        print(
-            f"HTTP error occurred on order status update: {http_err} - Response: {response.text}"
-        )
-    except Exception as err:
-        print(f"Other error occurred on order status update: {err}")
-
-
 def update_status(order_id: str, status: str, access_token: str) -> None:
     url = (
         "https://api-open.olsera.co.id/api/open-api/v1/en/order/openorder/updatestatus"
@@ -57,12 +34,6 @@ def update_status(order_id: str, status: str, access_token: str) -> None:
             print(f"[OTHER ERROR] order_id={order_id}: {err}")
             break  # keluar dari loop
 
-
-# for order_id in order_ids:
-#     outlet_id = 1
-#     token = get_token_by_outlet_id(outlet_id)
-#     update_status(order_id, "P", token)
-#     time.sleep(0.7)
 
 BASE_URL = "https://api-open.olsera.co.id/api/open-api/v1/en/order/openorder"
 

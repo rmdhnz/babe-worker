@@ -1,5 +1,6 @@
 from modules.crud_utility import *
 from modules.maps_utility import *
+from modules.olsera_service import *
 import requests
 from modules.models_sqlalchemy import User
 from collections import defaultdict
@@ -199,6 +200,8 @@ class StrukMaker:
             order_id,
             access_token=access_token,
         )
+        if not success:
+            return None, None, msg
         for add_item in additional_products:
             print(f"Additional product : {add_item['name']}")
             try:
