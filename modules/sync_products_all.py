@@ -1,10 +1,6 @@
 import time
-from modules.crud_utility import (
-    get_db_connection,
-    get_token_by_outlet_id,
-    get_outlet_name,
-    fetch_products_page,
-)
+from modules.crud_utility import *
+from modules.olsera_service import *
 
 allowed_klasifikasi = [
     "Inventory Produk",
