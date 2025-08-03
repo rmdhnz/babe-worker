@@ -6,3 +6,4 @@ __pycache__/
 data/
 model_lama/
 *.txt
+tes*

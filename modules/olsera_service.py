@@ -1,5 +1,11 @@
 import requests
 import time
+import logging
+from modules.models_sqlalchemy import Product
+from modules.sqlalchemy_setup import session
+from sqlalchemy.orm import joinedload
+
+logger = logging.getLogger(__name__)
 
 
 def cek_kastamer(nomor_telepon: str, access_token: str) -> tuple:
@@ -274,11 +280,6 @@ def add_prod_to_order(
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json",
     }
-
-    # response = requests.post(url, json=params, headers=headers)
-    # response.raise_for_status()  # Akan memunculkan exception jika status bukan 2xx
-    # return response.json()
-
     try:
         response = requests.post(url, json=params, headers=headers)
         response.raise_for_status()  # Akan memunculkan exception jika status bukan 2xx
@@ -375,6 +376,17 @@ def fetch_combo_detail(token, combo_id):
 def process_item(
     order_id: str, nama_produk: str, qty: int, cart: list, access_token: str
 ):
-    if not cart:
-        print("Cart kosong, tidak ada item untuk dipindahkan.")
-        return False, "Cart Kosong, tidak ada item untuk diproses"
+    outlet_id = 1
+    produk = (
+        session.query(Product)
+        .options(joinedload(Product.stock))
+        .filter(Product.name.ilike(f"%{nama_produk}%"), Product.outlet_id == outlet_id)
+        .first()
+    )
+    if not produk:
+        logger.error("Produk cocok dengan '%s' tidak ditemukan.", nama_produk)
+        update_status(order_id, "X", access_token=access_token)
+        return (
+            False,
+            f"Gagal menemukan produk dengan nama '{nama_produk}'. Coba gunakan nama lengkap produk sesuai database.",
+        )

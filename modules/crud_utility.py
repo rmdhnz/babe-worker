@@ -1,16 +1,15 @@
 import os
-from unicodedata import category
 import pymysql
 from datetime import datetime
 import pandas as pd
-import time
 from dotenv import load_dotenv
-import requests
 from sqlalchemy.orm import joinedload, sessionmaker
-from modules.sqlalchemy_setup import SessionLocal, engine
+from modules.sqlalchemy_setup import engine
 import json
-
+import logging
 from modules.models_sqlalchemy import Product
+
+logger = logging.getLogger(__name__)
 
 # Load .env file
 load_dotenv()

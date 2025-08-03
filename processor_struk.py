@@ -28,6 +28,8 @@ class OrderRequest(BaseModel):
     telepon: str
     cells: List[Cell]
     outlet_id: int
+    payment_type: Optional[str] = None
+    lunas: Optional[bool] = False
 
 
 agent = StrukMaker()
