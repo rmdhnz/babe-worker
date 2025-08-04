@@ -164,7 +164,6 @@ class StrukMaker:
 
         # 2. Masukkan item ke cart
         carts = raw_cart["cells"]
-
         main_products = []
         additional_products = []
 
@@ -228,6 +227,34 @@ class StrukMaker:
                 print(
                     f"Gagal menambahkan produk tambahan yaitu {add_item['name']}: {e}"
                 )
+
+        payment_modes = list_payment_modes(order_id, access_token)
+
+        order_details = fetch_order_details(order_id, access_token)
+        selected_mode = next(
+            (
+                pm
+                for pm in payment_modes
+                if pm["name"].lower() == raw_cart["payment_type"].lower()
+            ),
+            None,
+        )
+        if not selected_mode:
+            update_status(order_id=order_id, status="X", access_token=access_token)
+            return None, None, "Metode Pembayaran tidak dikenali. Struk divoidkan"
+        payment_id = selected_mode["id"]
+        total_amount = int(float(order_details["data"]["total_amount"]))
+
+        update_payment(
+            order_id=order_id,
+            payment_amount=str(total_amount),
+            payment_date=today_str,
+            payment_mode_id=str(payment_id),
+            access_token=access_token,
+            payment_payee="Order Web",
+            payment_seq="0",
+            payment_currency_id="IDR",
+        )
 
         if not success:
             return None, None, msg
