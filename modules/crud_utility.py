@@ -117,9 +117,9 @@ def update_product_details(
                 isinstance(percentage_alcohol, str)
                 and percentage_alcohol.replace(".", "", 1).isdigit()
             ):
-                product.percentage_alcohol = float(percentage_alcohol)
+                product.percent_alkohol = float(percentage_alcohol)
             else:
-                product.percentage_alcohol = 0.0
+                product.percent_alkohol = 0.0
                 print(f"Invalid percentage alcohol for product {olsera_id}. Set to 0.")
 
             product.keywords = keywords
@@ -141,23 +141,24 @@ def update_product_details_by_name(
     try:
         SessionLocal = sessionmaker(bind=engine)
         session = SessionLocal()
-        product = session.query(Product).filter(Product.name == name).first()
-        if product:
-            # Cek apakah percentage_alcohol valid
-            if (
-                isinstance(percentage_alcohol, str)
-                and percentage_alcohol.replace(".", "", 1).isdigit()
-            ):
-                product.percentage_alcohol = float(percentage_alcohol)
-            else:
-                product.percentage_alcohol = 0.0
-                print(f"Invalid percentage alcohol for product {name}. Set to 0.")
+        products = session.query(Product).filter(Product.name == name).all()
+        if products:
+            for product in products:
+                # Cek apakah percentage_alcohol valid
+                if (
+                    isinstance(percentage_alcohol, str)
+                    and percentage_alcohol.replace(".", "", 1).isdigit()
+                ):
+                    product.percent_alkohol = float(percentage_alcohol)
+                else:
+                    product.percent_alkohol = 0.0
+                    print(f"Invalid percentage alcohol for product {name}. Set to 0.")
 
-            product.keywords = keywords
-            product.tag = category
-            product.alias = alias
-            session.commit()
-            print(f"Product {name} updated successfully.")
+                product.keywords = keywords
+                product.tag = category
+                product.alias = alias
+                session.commit()
+                print(f"Product {name} updated successfully.")
         else:
             print(f"Product with name {name} and outlet_id {outlet_id} not found.")
     except Exception as e:
