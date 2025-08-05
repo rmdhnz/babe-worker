@@ -205,6 +205,7 @@ class StrukMaker:
             print(f"Additional product : {add_item['name']}")
             try:
                 if add_item["product_type_id"] == 3:
+                    # Combo
                     combo_details = fetch_product_combo_details(
                         add_item["product_id"], access_token
                     )
@@ -216,13 +217,54 @@ class StrukMaker:
                             quantity=1,
                             access_token=access_token,
                         )
-                else:
+
+                elif add_item["product_type_id"] == 4:
+                    # Merchandise, tambahkan dulu produknya
                     add_prod_to_order(
                         order_id=order_id,
                         product_id=add_item["product_id"],
                         quantity=1,
                         access_token=access_token,
                     )
+
+                    # Ambil detail order terbaru berdasarkan product_id
+                    order_details = fetch_order_details(order_id, access_token)
+                    order_details = order_details["data"]["orderitems"]
+                    matching_detail = next(
+                        (
+                            detail
+                            for detail in order_details
+                            if detail["product_id"] == add_item["product_id"]
+                        ),
+                        None,
+                    )
+
+                    if matching_detail:
+                        update_order_detail(
+                            order_id=order_id,
+                            id=matching_detail[
+                                "id"
+                            ],  # Ini ID dari order detail, bukan product
+                            disc="0",
+                            qty=1,
+                            price="0",
+                            note="Tukar Koin",
+                            access_token=access_token,
+                        )
+                    else:
+                        print(
+                            f"Order detail tidak ditemukan untuk produk {add_item['name']}"
+                        )
+
+                else:
+                    # Produk tambahan biasa
+                    add_prod_to_order(
+                        order_id=order_id,
+                        product_id=add_item["product_id"],
+                        quantity=1,
+                        access_token=access_token,
+                    )
+
             except Exception as e:
                 print(
                     f"Gagal menambahkan produk tambahan yaitu {add_item['name']}: {e}"
