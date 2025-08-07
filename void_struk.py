@@ -106,5 +106,5 @@ def update_all_orders_to_X(json_path: str, outlet_id: int):
 if __name__ == "__main__":
     outlet_id = 1  # ganti sesuai kebutuhan
     orders = fetch_filtered_order_ids(outlet_id)
-    save_orders_to_json(orders, filename="open_orders_OL.json")
+    # save_orders_to_json(orders, filename="open_orders_OL.json")
     update_all_orders_to_X("open_orders_OL.json", 1)

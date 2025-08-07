@@ -14,7 +14,7 @@ allowed_klasifikasi = [
 ]
 
 
-def sync_product_variants(outlet_id: int):
+def sync_product_images(outlet_id: int):
     token = get_token_by_outlet_id(outlet_id)
     outlet_name = get_outlet_name(outlet_id)
 
@@ -41,16 +41,15 @@ def sync_product_variants(outlet_id: int):
                     continue
 
                 olsera_id = item.get("id")
-                variants_data = item.get("variants", [])
-                variants_json = json.dumps(variants_data)
+                image_data = item.get("photo_md")
 
                 cursor.execute(
                     """
                     UPDATE products
-                    SET variants = %s, updated_at = NOW()
+                    SET image = %s, updated_at = NOW()
                     WHERE olsera_id = %s AND outlet_id = %s
                     """,
-                    (variants_json, olsera_id, outlet_id),
+                    (image_data, olsera_id, outlet_id),
                 )
                 total_updated += 1
 
@@ -62,15 +61,14 @@ def sync_product_variants(outlet_id: int):
 
     conn.commit()
     conn.close()
-    print(f"[{outlet_name}] Total product variants updated: {total_updated}")
+    print(f"[{outlet_name}] Total product image updated: {total_updated}")
 
 
 def job():
     try:
-        print("START UPDATE VARIANT")
-        all_outlets = get_all_outlets().json()
-        for outlet in all_outlets:
-            sync_product_variants(outlet_id=outlet["id"])
+        print("START UPDATE image")
+        # all_outlets = get_all_outlets().json()
+        sync_product_images(outlet_id=1)
         print("ANJAY KELAR")
     except Exception as e:
         print(f"[ERROR] [{e}]")
@@ -83,7 +81,7 @@ def run_scheduler():
 
 
 if __name__ == "__main__":
-    print("Worker Variant is running... ")
+    print("Worker Image is running... ")
     job()
     schedule.every().day.at("00:30").do(job)
     threading.Thread(target=run_scheduler).start()

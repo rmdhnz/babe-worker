@@ -297,6 +297,7 @@ class StrukMaker:
             payment_seq="0",
             payment_currency_id="IDR",
         )
+        update_status(order_id=order_id, status="Z", access_token=access_token)
 
         if not success:
             return None, None, msg
