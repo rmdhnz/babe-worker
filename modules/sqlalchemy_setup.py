@@ -12,7 +12,6 @@ DB_URL = f"mysql+pymysql://{os.getenv('DB_USERNAME')}:{os.getenv('DB_PASSWORD')}
 
 engine = create_engine(DB_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
-session = SessionLocal()
 
 Base = declarative_base()
 
