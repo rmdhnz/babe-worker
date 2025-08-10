@@ -4,7 +4,7 @@ from modules.olsera_service import *
 import requests
 from modules.models_sqlalchemy import User
 from collections import defaultdict
-from modules.sqlalchemy_setup import session
+from modules.sqlalchemy_setup import get_db_session
 
 
 def search_ongkir_related_product(keywords: str, access_token: str) -> tuple:
@@ -136,7 +136,8 @@ class StrukMaker:
 
     def handle_order(self, raw_cart):
         access_token = get_token_by_outlet_id(raw_cart["outlet_id"])
-        user = session.query(User).filter(User.id == raw_cart["user_id"]).first()
+        with get_db_session() as session:
+            user = session.query(User).filter(User.id == raw_cart["user_id"]).first()
 
         # 1. Create order
         customer = cek_kastamer(

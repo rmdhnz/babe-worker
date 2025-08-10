@@ -2,7 +2,7 @@ import requests
 import time
 import logging
 from modules.models_sqlalchemy import Product
-from modules.sqlalchemy_setup import session
+from modules.sqlalchemy_setup import get_db_session
 from sqlalchemy.orm import joinedload
 
 logger = logging.getLogger(__name__)
@@ -377,12 +377,15 @@ def process_item(
     order_id: str, nama_produk: str, qty: int, cart: list, access_token: str
 ):
     outlet_id = 1
-    produk = (
-        session.query(Product)
-        .options(joinedload(Product.stock))
-        .filter(Product.name.ilike(f"%{nama_produk}%"), Product.outlet_id == outlet_id)
-        .first()
-    )
+    with get_db_session() as session:
+        produk = (
+            session.query(Product)
+            .options(joinedload(Product.stock))
+            .filter(
+                Product.name.ilike(f"%{nama_produk}%"), Product.outlet_id == outlet_id
+            )
+            .first()
+        )
     if not produk:
         logger.error("Produk cocok dengan '%s' tidak ditemukan.", nama_produk)
         update_status(order_id, "X", access_token=access_token)
