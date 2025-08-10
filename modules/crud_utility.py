@@ -3,8 +3,8 @@ import pymysql
 from datetime import datetime
 import pandas as pd
 from dotenv import load_dotenv
-from sqlalchemy.orm import joinedload, sessionmaker
-from modules.sqlalchemy_setup import engine
+from sqlalchemy.orm import joinedload
+from modules.sqlalchemy_setup import get_db_session
 import json
 import logging
 from modules.models_sqlalchemy import Product
@@ -23,6 +23,7 @@ DB_PASS = os.getenv("DB_PASSWORD")
 
 
 def get_db_connection():
+    """Koneksi langsung MySQL pakai pymysql (untuk query non-SQLAlchemy)"""
     return pymysql.connect(
         host=DB_HOST,
         user=DB_USER,
@@ -34,24 +35,18 @@ def get_db_connection():
 
 
 def get_all_products_with_stock():
-    SessionLocal = sessionmaker(bind=engine)
-    session = SessionLocal()
-
-    products = session.query(Product).options(joinedload(Product.stock)).limit(5).all()
-    return products
+    with get_db_session() as session:
+        return session.query(Product).options(joinedload(Product.stock)).limit(5).all()
 
 
 def get_product_by_olsera_id(olsera_id, outlet_id: int):
-    SessionLocal = sessionmaker(bind=engine)
-    session = SessionLocal()
-
-    product = (
-        session.query(Product)
-        .options(joinedload(Product.stock))
-        .filter(Product.olsera_id == olsera_id, Product.outlet_id == outlet_id)
-        .first()
-    )
-    return product
+    with get_db_session() as session:
+        return (
+            session.query(Product)
+            .options(joinedload(Product.stock))
+            .filter(Product.olsera_id == olsera_id, Product.outlet_id == outlet_id)
+            .first()
+        )
 
 
 def get_all_tokens():
@@ -60,7 +55,6 @@ def get_all_tokens():
         cursor.execute("SELECT outlet_id, token FROM token_caches")
         result = cursor.fetchall()
         columns = [desc[0] for desc in cursor.description]
-        cursor.close()
     conn.close()
     return OutletResult(result, columns)
 
@@ -107,12 +101,39 @@ def get_all_outlets():
 def update_product_details(
     olsera_id, outlet_id, category, percentage_alcohol, alias, keywords
 ):
-    try:
-        SessionLocal = sessionmaker(bind=engine)
-        session = SessionLocal()
+    with get_db_session() as session:
         product = session.query(Product).filter(Product.olsera_id == olsera_id).first()
-        if product:
-            # Cek apakah percentage_alcohol valid
+        if not product:
+            print(
+                f"Product with olsera_id {olsera_id} and outlet_id {outlet_id} not found."
+            )
+            return
+
+        if (
+            isinstance(percentage_alcohol, str)
+            and percentage_alcohol.replace(".", "", 1).isdigit()
+        ):
+            product.percent_alkohol = float(percentage_alcohol)
+        else:
+            product.percent_alkohol = 0.0
+            print(f"Invalid percentage alcohol for product {olsera_id}. Set to 0.")
+
+        product.keywords = keywords
+        product.tag = category
+        product.alias = alias
+        print(f"Product {olsera_id} updated successfully.")
+
+
+def update_product_details_by_name(
+    name, outlet_id, category, percentage_alcohol, alias, keywords
+):
+    with get_db_session() as session:
+        products = session.query(Product).filter(Product.name == name).all()
+        if not products:
+            print(f"Product with name {name} and outlet_id {outlet_id} not found.")
+            return
+
+        for product in products:
             if (
                 isinstance(percentage_alcohol, str)
                 and percentage_alcohol.replace(".", "", 1).isdigit()
@@ -120,53 +141,16 @@ def update_product_details(
                 product.percent_alkohol = float(percentage_alcohol)
             else:
                 product.percent_alkohol = 0.0
-                print(f"Invalid percentage alcohol for product {olsera_id}. Set to 0.")
+                print(f"Invalid percentage alcohol for product {name}. Set to 0.")
 
             product.keywords = keywords
             product.tag = category
             product.alias = alias
-            session.commit()
-            print(f"Product {olsera_id} updated successfully.")
-        else:
-            print(
-                f"Product with olsera_id {olsera_id} and outlet_id {outlet_id} not found."
-            )
-    except Exception as e:
-        print(f"Error updating product [{olsera_id}]: {e}")
 
-
-def update_product_details_by_name(
-    name, outlet_id, category, percentage_alcohol, alias, keywords
-):
-    try:
-        SessionLocal = sessionmaker(bind=engine)
-        session = SessionLocal()
-        products = session.query(Product).filter(Product.name == name).all()
-        if products:
-            for product in products:
-                # Cek apakah percentage_alcohol valid
-                if (
-                    isinstance(percentage_alcohol, str)
-                    and percentage_alcohol.replace(".", "", 1).isdigit()
-                ):
-                    product.percent_alkohol = float(percentage_alcohol)
-                else:
-                    product.percent_alkohol = 0.0
-                    print(f"Invalid percentage alcohol for product {name}. Set to 0.")
-
-                product.keywords = keywords
-                product.tag = category
-                product.alias = alias
-                session.commit()
-                print(f"Product {name} updated successfully.")
-        else:
-            print(f"Product with name {name} and outlet_id {outlet_id} not found.")
-    except Exception as e:
-        print(f"Error updating product [{name}]: {e}")
+        print(f"Product {name} updated successfully.")
 
 
 def get_product_variants_by_olsera_id(olsera_id, outlet_id):
-
     conn = get_db_connection()
     with conn.cursor() as cursor:
         cursor.execute(
@@ -175,8 +159,10 @@ def get_product_variants_by_olsera_id(olsera_id, outlet_id):
         )
         row = cursor.fetchone()
     conn.close()
+
     if not row or not row[0]:
         return []
+
     try:
         variants = json.loads(row[0])
         return variants if isinstance(variants, list) else []
