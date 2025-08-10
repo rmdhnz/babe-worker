@@ -139,167 +139,173 @@ class StrukMaker:
         with get_db_session() as session:
             user = session.query(User).filter(User.id == raw_cart["user_id"]).first()
 
-        # 1. Create order
-        customer = cek_kastamer(
-            nomor_telepon=raw_cart["telepon"], access_token=access_token
-        )
-        cust_telp = raw_cart["telepon"]
-        cust_name = raw_cart["name"]
+            # 1. Create order
+            customer = cek_kastamer(
+                nomor_telepon=raw_cart["telepon"], access_token=access_token
+            )
+            cust_telp = raw_cart["telepon"]
+            cust_name = raw_cart["name"]
 
-        today_str = datetime.now().strftime("%Y-%m-%d")
+            today_str = datetime.now().strftime("%Y-%m-%d")
 
-        try:
-            print(f"Membuat order atas nama {user.name}...")
-            order_id, order_no = create_order(
-                order_date=today_str,
-                customer_id=customer[0] if customer else None,
-                nama_kastamer=cust_name,
-                nomor_telepon=cust_telp,
-                notes="Buat order web",
+            try:
+                print(f"Membuat order atas nama {user.name}...")
+                order_id, order_no = create_order(
+                    order_date=today_str,
+                    customer_id=customer[0] if customer else None,
+                    nama_kastamer=cust_name,
+                    nomor_telepon=cust_telp,
+                    notes="Buat order web",
+                    access_token=access_token,
+                )
+                print(
+                    f"Order berhasil dibuat dengan ID: {order_id} dan Nomor: {order_no}"
+                )
+            except Exception as e:
+                print(f"Gagal membuat order: {e}")
+                return None, None, f"Gagal membuat order: {e}"
+
+            # 2. Masukkan item ke cart
+            carts = raw_cart["cells"]
+            main_products = []
+            additional_products = []
+
+            for cart in carts:
+                if cart.get("prodvar_id"):
+                    main_products.append(
+                        {
+                            "product_id": cart["id"],
+                            "prodvar_id": cart["prodvar_id"],
+                            "name": cart["name"],
+                            "qty": cart["qty"],
+                            "product_type_id": cart["product_type_id"],
+                            "disc": float(cart["disc"] or 0),
+                        }
+                    )
+                else:
+                    additional_products.append(
+                        {
+                            "product_id": cart["id"],
+                            "name": cart["name"],
+                            "qty": cart["qty"],
+                            "product_type_id": cart["product_type_id"],
+                            "disc": float(cart.get("disc") or 0),
+                        }
+                    )
+
+            # 2. AGGREGASI CART BY PRODVAR
+            aggregated_carts = self.aggregate_cart_by_prodvar(main_products)
+
+            # 3. Move aggregated cart to order
+            success, msg = self.move_cart_to_order(
+                aggregated_carts,
+                order_id,
                 access_token=access_token,
             )
-            print(f"Order berhasil dibuat dengan ID: {order_id} dan Nomor: {order_no}")
-        except Exception as e:
-            print(f"Gagal membuat order: {e}")
-            return None, None, f"Gagal membuat order: {e}"
+            if not success:
+                return None, None, msg
+            for add_item in additional_products:
+                print(f"Additional product : {add_item['name']}")
+                try:
+                    if add_item["product_type_id"] == 3:
+                        # Combo
+                        combo_details = fetch_product_combo_details(
+                            add_item["product_id"], access_token
+                        )
+                        combo_items = combo_details["data"]["items"]["data"]
+                        for item in combo_items:
+                            add_prod_to_order(
+                                order_id=order_id,
+                                product_id=item.get("product_id"),
+                                quantity=1,
+                                access_token=access_token,
+                            )
 
-        # 2. Masukkan item ke cart
-        carts = raw_cart["cells"]
-        main_products = []
-        additional_products = []
-
-        for cart in carts:
-            if cart.get("prodvar_id"):
-                main_products.append(
-                    {
-                        "product_id": cart["id"],
-                        "prodvar_id": cart["prodvar_id"],
-                        "name": cart["name"],
-                        "qty": cart["qty"],
-                        "product_type_id": cart["product_type_id"],
-                        "disc": float(cart["disc"] or 0),
-                    }
-                )
-            else:
-                additional_products.append(
-                    {
-                        "product_id": cart["id"],
-                        "name": cart["name"],
-                        "qty": cart["qty"],
-                        "product_type_id": cart["product_type_id"],
-                        "disc": float(cart.get("disc") or 0),
-                    }
-                )
-
-        # 2. AGGREGASI CART BY PRODVAR
-        aggregated_carts = self.aggregate_cart_by_prodvar(main_products)
-
-        # 3. Move aggregated cart to order
-        success, msg = self.move_cart_to_order(
-            aggregated_carts,
-            order_id,
-            access_token=access_token,
-        )
-        if not success:
-            return None, None, msg
-        for add_item in additional_products:
-            print(f"Additional product : {add_item['name']}")
-            try:
-                if add_item["product_type_id"] == 3:
-                    # Combo
-                    combo_details = fetch_product_combo_details(
-                        add_item["product_id"], access_token
-                    )
-                    combo_items = combo_details["data"]["items"]["data"]
-                    for item in combo_items:
+                    elif add_item["product_type_id"] == 4:
+                        # Merchandise, tambahkan dulu produknya
                         add_prod_to_order(
                             order_id=order_id,
-                            product_id=item.get("product_id"),
+                            product_id=add_item["product_id"],
                             quantity=1,
                             access_token=access_token,
                         )
 
-                elif add_item["product_type_id"] == 4:
-                    # Merchandise, tambahkan dulu produknya
-                    add_prod_to_order(
-                        order_id=order_id,
-                        product_id=add_item["product_id"],
-                        quantity=1,
-                        access_token=access_token,
-                    )
+                        # Ambil detail order terbaru berdasarkan product_id
+                        order_details = fetch_order_details(order_id, access_token)
+                        order_details = order_details["data"]["orderitems"]
+                        matching_detail = next(
+                            (
+                                detail
+                                for detail in order_details
+                                if detail["product_id"] == add_item["product_id"]
+                            ),
+                            None,
+                        )
 
-                    # Ambil detail order terbaru berdasarkan product_id
-                    order_details = fetch_order_details(order_id, access_token)
-                    order_details = order_details["data"]["orderitems"]
-                    matching_detail = next(
-                        (
-                            detail
-                            for detail in order_details
-                            if detail["product_id"] == add_item["product_id"]
-                        ),
-                        None,
-                    )
+                        if matching_detail:
+                            update_order_detail(
+                                order_id=order_id,
+                                id=matching_detail[
+                                    "id"
+                                ],  # Ini ID dari order detail, bukan product
+                                disc="0",
+                                qty=1,
+                                price="0",
+                                note="Tukar Koin",
+                                access_token=access_token,
+                            )
+                        else:
+                            print(
+                                f"Order detail tidak ditemukan untuk produk {add_item['name']}"
+                            )
 
-                    if matching_detail:
-                        update_order_detail(
+                    else:
+                        # Produk tambahan biasa
+                        add_prod_to_order(
                             order_id=order_id,
-                            id=matching_detail[
-                                "id"
-                            ],  # Ini ID dari order detail, bukan product
-                            disc="0",
-                            qty=1,
-                            price="0",
-                            note="Tukar Koin",
+                            product_id=add_item["product_id"],
+                            quantity=1,
                             access_token=access_token,
                         )
-                    else:
-                        print(
-                            f"Order detail tidak ditemukan untuk produk {add_item['name']}"
-                        )
 
-                else:
-                    # Produk tambahan biasa
-                    add_prod_to_order(
-                        order_id=order_id,
-                        product_id=add_item["product_id"],
-                        quantity=1,
-                        access_token=access_token,
+                except Exception as e:
+                    print(
+                        f"Gagal menambahkan produk tambahan yaitu {add_item['name']}: {e}"
                     )
 
-            except Exception as e:
-                print(
-                    f"Gagal menambahkan produk tambahan yaitu {add_item['name']}: {e}"
-                )
+            payment_modes = list_payment_modes(order_id, access_token)
 
-        payment_modes = list_payment_modes(order_id, access_token)
+            order_details = fetch_order_details(order_id, access_token)
+            selected_mode = next(
+                (
+                    pm
+                    for pm in payment_modes
+                    if pm["name"].lower() == raw_cart["payment_type"].lower()
+                ),
+                None,
+            )
+            if not selected_mode:
+                update_status(order_id=order_id, status="X", access_token=access_token)
+                return None, None, "Metode Pembayaran tidak dikenali. Struk divoidkan"
+            payment_id = selected_mode["id"]
+            total_amount = int(float(order_details["data"]["total_amount"]))
 
-        order_details = fetch_order_details(order_id, access_token)
-        selected_mode = next(
-            (
-                pm
-                for pm in payment_modes
-                if pm["name"].lower() == raw_cart["payment_type"].lower()
-            ),
-            None,
-        )
-        if not selected_mode:
-            update_status(order_id=order_id, status="X", access_token=access_token)
-            return None, None, "Metode Pembayaran tidak dikenali. Struk divoidkan"
-        payment_id = selected_mode["id"]
-        total_amount = int(float(order_details["data"]["total_amount"]))
+            update_payment(
+                order_id=order_id,
+                payment_amount=str(total_amount),
+                payment_date=today_str,
+                payment_mode_id=str(payment_id),
+                access_token=access_token,
+                payment_payee="Order Web",
+                payment_seq="0",
+                payment_currency_id="IDR",
+            )
+            update_status(order_id=order_id, status="Z", access_token=access_token)
 
-        update_payment(
-            order_id=order_id,
-            payment_amount=str(total_amount),
-            payment_date=today_str,
-            payment_mode_id=str(payment_id),
-            access_token=access_token,
-            payment_payee="Order Web",
-            payment_seq="0",
-            payment_currency_id="IDR",
-        )
-        update_status(order_id=order_id, status="Z", access_token=access_token)
-
-        if not success:
-            return None, None, msg
-        return order_id, order_no, "Order berhasil dibuat dan ongkir telah diperbarui."
+            if not success:
+                return None, None, msg
+            return (
+                order_id,
+                order_no,
+                "Order berhasil dibuat dan ongkir telah diperbarui.",
+            )
