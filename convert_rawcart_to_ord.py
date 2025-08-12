@@ -205,9 +205,9 @@ class StrukMaker:
             if not success:
                 return None, None, msg
             for add_item in additional_products:
-                print(f"Additional product : {add_item['name']}")
                 try:
                     if add_item["product_type_id"] == 3:
+                        print(f"Additional product (Combo) : {add_item['name']}")
                         # Combo
                         combo_details = fetch_product_combo_details(
                             add_item["product_id"], access_token
@@ -222,6 +222,7 @@ class StrukMaker:
                             )
 
                     elif add_item["product_type_id"] == 4:
+                        print(f"Additional product (Merch) : {add_item['name']}")
                         # Merchandise, tambahkan dulu produknya
                         add_prod_to_order(
                             order_id=order_id,
