@@ -159,7 +159,7 @@ class StrukMaker:
                 )
                 return (
                     None,
-                    None,
+                    -1,
                     "Jumlah Driver untuk Express sedang tidak tersedia, silahkan pilih Free Delivery atau Instant Delivery",
                 )
         access_token = get_token_by_outlet_id(raw_cart["outlet_id"])
