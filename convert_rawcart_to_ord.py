@@ -5,6 +5,12 @@ import requests
 from modules.models_sqlalchemy import User
 from collections import defaultdict
 from modules.sqlalchemy_setup import get_db_session
+from dotenv import load_dotenv
+import os
+
+
+load_dotenv()
+URL_DRIVER = os.getenv("URL_LIST_DRIVER")
 
 
 def search_ongkir_related_product(keywords: str, access_token: str) -> tuple:
@@ -134,7 +140,28 @@ class StrukMaker:
         aggregated_by_prodvar = list(agg_by_prodvar.values())
         return aggregated_by_prodvar
 
+    def count_driver_available(self) -> int:
+        response = requests.get(URL_DRIVER)
+        if response.status_code == 200:
+            data = response.json()
+            total_driver_availabel = sum(1 for d in data if d.get("status") == "STAY")
+            return total_driver_availabel
+        else:
+            return -1
+
     def handle_order(self, raw_cart):
+        if raw_cart["express_delivery"]:
+            total_driver = self.count_driver_available()
+            if total_driver < 20:
+                print(
+                    "Jumlah driver tidak memenuhi untuk express. Jumlah driver saat ini ",
+                    total_driver,
+                )
+                return (
+                    None,
+                    None,
+                    "Jumlah Driver untuk Express sedang tidak tersedia, silahkan pilih Free Delivery atau Instant Delivery",
+                )
         access_token = get_token_by_outlet_id(raw_cart["outlet_id"])
         with get_db_session() as session:
             user = session.query(User).filter(User.id == raw_cart["user_id"]).first()
