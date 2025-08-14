@@ -30,6 +30,7 @@ class OrderRequest(BaseModel):
     outlet_id: int
     payment_type: Optional[str] = None
     lunas: Optional[bool] = False
+    express_delivery: Optional[bool] = False
 
 
 agent = StrukMaker()
