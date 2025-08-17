@@ -7,6 +7,7 @@ import time
 import requests
 import re
 from datetime import datetime, timedelta
+import urllib.parse
 from math import ceil
 
 instan_siang =  [25, 25, 25, 30, 30, 35, 35, 40, 40, 45, 50, 55, 55, 55, 55, 55, 55, 65, 65, 75]
@@ -159,55 +160,78 @@ def address_to_latlng(address, api_key):
 #         elif "administrative_area_level_1" in types:
 #             provinsi = comp.get("long_name")
 
-def resolve_maps_shortlink(shortlink, api_key):
-    # Step 1: Buka browser headless dan resolve shortlink
+def resolve_maps_shortlink(shortlink, api_key, timeout=10):
+    # --- Step 1: Open headless browser and resolve shortlink ---
     options = Options()
+    options.page_load_strategy = 'none'
     options.add_argument("--headless=new")
-    # options.add_argument("--no-sandbox")
-    # options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
-    # options.add_argument("--disable-software-rasterizer")
-    # options.add_argument("--remote-debugging-port=9222")
-    # options.add_argument("--user-data-dir=/tmp/selenium")
+    options.add_argument("--disable-software-rasterizer")
+    options.add_argument("--remote-debugging-port=9222")
+    options.add_argument("--user-data-dir=/tmp/selenium")
 
     driver = webdriver.Chrome(options=options)
     driver.get(shortlink)
-    time.sleep(5)  # Tunggu redirect selesai
+    start_time = time.time()
     final_url = driver.current_url
+    # Tunggu hingga URL berubah atau timeout
+    while time.time() - start_time < timeout:
+        url = driver.current_url
+        # Matikan saat url mengandung /maps/place/
+        if '/maps/place/' in url:
+            final_url = url
+            break
+        time.sleep(0.1)
     driver.quit()
 
-    # Step 2: Ekstrak koordinat dari URL hasil redirect
-    match = re.search(r'/@(-?\d+\.\d+),(-?\d+\.\d+)', final_url)
-    if not match:
-        return None, None, None, None, None, None
-    lat, lng = map(float, match.groups())
+    # --- Step 2: Extract place name ---
+    place_match = re.search(r'/maps/place/([^/]+)', final_url)
+    place_name = urllib.parse.unquote_plus(place_match.group(1)) if place_match else None
 
-    # Step 3: Ambil alamat dari koordinat via Geocoding API
-    endpoint = f"https://maps.googleapis.com/maps/api/geocode/json?latlng={lat},{lng}&key={api_key}"
-    response = requests.get(endpoint)
-    data = response.json()
+    # --- Step 3: Extract coordinates ---
+    lat = lng = None
+    # Coba format @lat,lng
+    match_at = re.search(r'/@(-?\d+\.\d+),(-?\d+\.\d+)', final_url)
+    if match_at:
+        lat, lng = map(float, match_at.groups())
+    else:
+        # Coba format !3dlat!4dlng
+        match_34 = re.search(r'!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)', final_url)
+        if match_34:
+            lat, lng = map(float, match_34.groups())
 
-    if data["status"] != "OK":
-        return None, (lat, lng), None, None, None, None
+    # --- Step 4: Geocoding API ---
+    if lat is not None and lng is not None:
+        endpoint = f"https://maps.googleapis.com/maps/api/geocode/json?latlng={lat},{lng}&key={api_key}"
+    elif place_name:
+        addr = urllib.parse.quote_plus(place_name)
+        endpoint = f"https://maps.googleapis.com/maps/api/geocode/json?address={addr}&key={api_key}"
+    else:
+        return None, None, None, None, None, None, None
 
-    results = data["results"][0]
-    address = results["formatted_address"]
+    res = requests.get(endpoint).json()
+    if res.get('status') != 'OK' or not res.get('results'):
+        return place_name, (lat, lng), None, None, None, None, place_name
 
-    # Step 4: Ekstrak kelurahan, kecamatan, kota, provinsi
+    info = res['results'][0]
+    formatted_address = info.get('formatted_address')
+
+    # --- Step 5: Extract components ---
     kelurahan = kecamatan = kota = provinsi = None
-    for comp in results["address_components"]:
-        types = comp["types"]
-        if "administrative_area_level_4" in types or "sublocality_level_1" in types or "locality" in types:
-            if not kelurahan:
-                kelurahan = comp["long_name"]
-        if "administrative_area_level_3" in types:
-            kecamatan = comp["long_name"]
-        if "administrative_area_level_2" in types:
-            kota = comp["long_name"]
-        if "administrative_area_level_1" in types:
-            provinsi = comp["long_name"]
+    for comp in info.get('address_components', []):
+        types = comp.get('types', [])
+        if any(t in types for t in ['administrative_area_level_4','sublocality_level_1','locality']):
+            kelurahan = kelurahan or comp.get('long_name')
+        if 'administrative_area_level_3' in types:
+            kecamatan = comp.get('long_name')
+        if 'administrative_area_level_2' in types:
+            kota = comp.get('long_name')
+        if 'administrative_area_level_1' in types:
+            provinsi = comp.get('long_name')
 
-    return address, (lat, lng), kelurahan, kecamatan, kota, provinsi
+    return formatted_address, (lat, lng), kelurahan, kecamatan, kota, provinsi
 
 def get_travel_distance(origin, destination, api_key, mode="driving"):
     """
@@ -324,7 +348,7 @@ def get_fastest_route_details(origin, destination, api_key, mode="driving"):
         return None
 
 def distance_cost_rule(dist: float, is_free: bool = False) -> str:
-    if is_free and dist >= 9.5:
+    if is_free and dist >= 9.5 and dist < 14:
         return "Subsidi Ongkir 10K"
 
     if dist < 9.5:

@@ -283,12 +283,13 @@ def add_prod_to_order(
     try:
         response = requests.post(url, json=params, headers=headers)
         response.raise_for_status()  # Akan memunculkan exception jika status bukan 2xx
-        return response.json()
+        return True, response.json()
     except requests.exceptions.HTTPError as http_err:
         print(
             f"HTTP error occurred on product inputting: {http_err} - Response: {response.text}"
         )
-        return response.json()
+        print(f"Produk dengan ID : {product_id} stock tidak tersedia")
+        return False, response.json()
     except Exception as err:
         print(f"Other error occurred on product inputting: {err}")
 
