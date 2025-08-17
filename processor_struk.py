@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import List, Literal, Optional
 from convert_rawcart_to_ord import StrukMaker
 
+
 app = FastAPI()
 
 
@@ -41,6 +42,11 @@ def create_order(order: OrderRequest):
     payload_dict = order.dict()
     response = agent.handle_order(payload_dict)
     return response
+
+
+@app.post("/forward_struk")
+def send_struk_to_wa():
+    pass
 
 
 if __name__ == "__main__":

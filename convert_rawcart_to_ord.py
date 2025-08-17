@@ -54,17 +54,14 @@ class StrukMaker:
             prodvar_id = item["prodvar_id"]
             qty = item["qty"]
             try:
-                resp = add_prod_to_order(
+                success, resp = add_prod_to_order(
                     order_id, prodvar_id, qty, access_token=access_token
                 )
-                if resp is None:
+                if not success:
                     print(
-                        "Gagal menambahkan produk ke order, produk habis. Struk di-voidkan."
+                        msg := f"Stok produk {item['name']} tidak mencukupi. Struk dibatalkan"
                     )
-                    return (
-                        False,
-                        "Gagal menambahkan produk ke order, produk habis. Struk di-voidkan.",
-                    )
+                    return False, msg
             except requests.exceptions.HTTPError:
                 print(
                     "Ada kesalahan HTTP saat memasukkan produk ke order. Struk di-voidkan."
@@ -230,6 +227,7 @@ class StrukMaker:
                 access_token=access_token,
             )
             if not success:
+                update_status(order_id=order_id, status="X", access_token=access_token)
                 return None, None, msg
             for add_item in additional_products:
                 try:
@@ -241,22 +239,34 @@ class StrukMaker:
                         )
                         combo_items = combo_details["data"]["items"]["data"]
                         for item in combo_items:
-                            add_prod_to_order(
+                            success, data = add_prod_to_order(
                                 order_id=order_id,
                                 product_id=item.get("product_id"),
                                 quantity=1,
                                 access_token=access_token,
                             )
+                            if not success:
+                                return (
+                                    None,
+                                    None,
+                                    f"Stock Produk {item} tidak mencukupi",
+                                )
 
                     elif add_item["product_type_id"] == 4:
                         print(f"Additional product (Merch) : {add_item['name']}")
                         # Merchandise, tambahkan dulu produknya
-                        add_prod_to_order(
+                        sucess, data = add_prod_to_order(
                             order_id=order_id,
                             product_id=add_item["product_id"],
                             quantity=1,
                             access_token=access_token,
                         )
+                        if not success:
+                            return (
+                                None,
+                                None,
+                                f"Stock Produk {item} tidak mencukupi",
+                            )
 
                         # Ambil detail order terbaru berdasarkan product_id
                         order_details = fetch_order_details(order_id, access_token)
