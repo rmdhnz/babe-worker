@@ -21,5 +21,5 @@ def import_product_details(file_path):
 
 
 if __name__ == "__main__":
-    file_path = "./data/output-solo.json"  # Replace with your JSON file path
+    file_path = "./output-solo.json"  # Replace with your JSON file path
     import_product_details(file_path)

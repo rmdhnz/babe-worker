@@ -156,12 +156,12 @@ class StrukMaker:
                 )
                 return (
                     None,
-                    -1,
+                    0,
                     "Jumlah Driver untuk Express sedang tidak tersedia, silahkan pilih Free Delivery atau Instant Delivery",
                 )
         access_token = get_token_by_outlet_id(raw_cart["outlet_id"])
         with get_db_session() as session:
-            user = session.query(User).filter(User.id == raw_cart["user_id"]).first()
+            # user = session.query(User).filter(User.id == raw_cart["user_id"]).first()
 
             # 1. Create order
             customer = cek_kastamer(
@@ -173,7 +173,7 @@ class StrukMaker:
             today_str = datetime.now().strftime("%Y-%m-%d")
 
             try:
-                print(f"Membuat order atas nama {user.name}...")
+                print(f"Membuat order atas nama {raw_cart["name"]}...")
                 order_id, order_no = create_order(
                     order_date=today_str,
                     customer_id=customer[0] if customer else None,
