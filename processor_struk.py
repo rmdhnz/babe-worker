@@ -48,11 +48,11 @@ def create_order(order: OrderRequest):
     return response
 
 
-@app.post("/forward_struk")
-def forward_order(order: OrderRequest):
-    payload_dict = order.dict()
-    response = forward_struk(payload_dict)
-    return response
+# @app.post("/forward_struk")
+# def forward_order(order: OrderRequest):
+#     payload_dict = order.dict()
+#     response = forward_struk(payload_dict)
+#     return response
 
 
 if __name__ == "__main__":
