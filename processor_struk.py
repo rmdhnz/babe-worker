@@ -1,7 +1,9 @@
+from re import S
 from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List, Literal, Optional
 from convert_rawcart_to_ord import StrukMaker
+from struk_forwarder import forward_struk
 
 
 app = FastAPI()
@@ -32,6 +34,7 @@ class OrderRequest(BaseModel):
     payment_type: Optional[str] = None
     lunas: Optional[bool] = False
     express_delivery: Optional[bool] = False
+    notes: Optional[str] = None
 
 
 agent = StrukMaker()
@@ -45,8 +48,10 @@ def create_order(order: OrderRequest):
 
 
 @app.post("/forward_struk")
-def send_struk_to_wa():
-    pass
+def forward_order(order: OrderRequest):
+    payload_dict = order.dict()
+    response = forward_struk(payload_dict)
+    return response
 
 
 if __name__ == "__main__":
