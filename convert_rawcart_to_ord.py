@@ -1,12 +1,15 @@
+from trio import Condition
 from modules.crud_utility import *
 from modules.maps_utility import *
 from modules.olsera_service import *
 import requests
-from modules.models_sqlalchemy import User
+from modules.models_sqlalchemy import Outlet, User
 from collections import defaultdict
 from modules.sqlalchemy_setup import get_db_session
 from dotenv import load_dotenv
 import os
+
+from struk_forwarder import forward_struk
 
 
 load_dotenv()
@@ -156,7 +159,7 @@ class StrukMaker:
                 )
                 return (
                     None,
-                    0,
+                    None,
                     "Jumlah Driver untuk Express sedang tidak tersedia, silahkan pilih Free Delivery atau Instant Delivery",
                 )
         access_token = get_token_by_outlet_id(raw_cart["outlet_id"])
@@ -179,7 +182,7 @@ class StrukMaker:
                     customer_id=customer[0] if customer else None,
                     nama_kastamer=cust_name,
                     nomor_telepon=cust_telp,
-                    notes="Buat order web",
+                    notes=(raw_cart["notes"] or "Tidak ada catatan tambahan."),
                     access_token=access_token,
                 )
                 print(
@@ -339,9 +342,6 @@ class StrukMaker:
                 payment_currency_id="IDR",
             )
             update_status(order_id=order_id, status="Z", access_token=access_token)
-
-            if not success:
-                return None, None, msg
             return (
                 order_id,
                 order_no,

@@ -12,10 +12,12 @@ from sqlalchemy import (
     ForeignKey,
     Table,
     Time,
+    TIMESTAMP,
 )
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from .sqlalchemy_setup import Base
+from sqlalchemy.sql import func
 
 combo_product = Table(
     "combo_product",
@@ -25,6 +27,13 @@ combo_product = Table(
     Column("qty", Integer, nullable=False),
     Column("created_at", DateTime, default=datetime.utcnow),
     Column("updated_at", DateTime, default=datetime.utcnow, onupdate=datetime.utcnow),
+)
+
+outlet_condition = Table(
+    "outlet_condition",
+    Base.metadata,
+    Column("outlet_id", BigInteger, ForeignKey("outlets.id"), primary_key=True),
+    Column("condition_id", BigInteger, ForeignKey("conditions.id"), primary_key=True),
 )
 
 
@@ -132,9 +141,34 @@ class Outlet(Base):
 
     # Relasi ke cart
     carts = relationship("Cart", back_populates="outlet")
+    conditions = relationship(
+        "Condition", secondary=outlet_condition, back_populates="outlets"
+    )
 
 
 class User(Base):
     __tablename__ = "users"
-    id = Column(BigInteger, primary_key=True)
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
     name = Column(String(255), nullable=False)
+    email = Column(String(255), nullable=True, unique=True)
+    jumlah_koin = Column(Integer, nullable=False, default=0)
+    free_instant_delivery = Column(Integer, nullable=False, default=0)
+    phone = Column(String(255), nullable=True, unique=True)
+    address = Column(String(255), nullable=True)
+    latitude = Column(DECIMAL(10, 8), nullable=True)
+    longitude = Column(DECIMAL(11, 8), nullable=True)
+    password = Column(String(255), nullable=False)
+    remember_token = Column(String(100), nullable=True)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+
+
+class Condition(Base):
+    __tablename__ = "conditions"
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    name = Column(String(255))
+    nilai = Column(Integer, nullable=False)
+    outlets = relationship(
+        "Outlet", secondary=outlet_condition, back_populates="conditions"
+    )
