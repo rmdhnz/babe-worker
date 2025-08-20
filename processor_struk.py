@@ -3,7 +3,8 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List, Literal, Optional
 from convert_rawcart_to_ord import StrukMaker
-from struk_forwarder import forward_struk
+
+# from struk_forwarder import forward_struk
 
 
 app = FastAPI()
