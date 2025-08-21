@@ -35,6 +35,7 @@ class OrderRequest(BaseModel):
     payment_type: Optional[str] = None
     lunas: Optional[bool] = False
     express_delivery: Optional[bool] = False
+    delivery_type_id: Optional[int] = None
     notes: Optional[str] = None
 
 
