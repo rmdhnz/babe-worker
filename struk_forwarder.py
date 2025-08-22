@@ -67,7 +67,7 @@ def forward_struk(payload: dict):
         "",
         "Makasih yaa Cah udah Jajan di Babe!",
         f"Total Jajan: {payload.get('total_amount', 0)} (*{payload.get('payment_type', '').upper()}*)",
-        f"Cek Jajanmu di sini: {payload.get('struk_url', '')}"
+        f"Cek Jajanmu di sini: {payload.get('struk_url', '')}\n"
         f"Jam Order: *{datetime.now().strftime('%H:%M')}*",
         "",
         "",
@@ -76,8 +76,7 @@ def forward_struk(payload: dict):
     ]
 
     invoice = "\n".join([line for line in invoice_lines if line is not None])
-    print(invoice)
-
+    print("Mulai mengirim invoice ke grup WhatsApp...")
     try:
         for group_id in group_ids:
             group_payload = {
@@ -94,6 +93,7 @@ def forward_struk(payload: dict):
             )
             time.sleep(3)
 
+        print("Selesai mengirim invoice ke grup WhatsApp.")
         return {
             "status": 200,
             "message": "Invoice forwarded successfully",

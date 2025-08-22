@@ -1,6 +1,6 @@
 from re import S
 from fastapi import FastAPI
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Literal, Optional
 from convert_rawcart_to_ord import StrukMaker
 from struk_forwarder import forward_struk
@@ -38,6 +38,33 @@ class OrderRequest(BaseModel):
     notes: Optional[str] = None
 
 
+class PayloadRequest(BaseModel):
+    cust_name: str = Field(default="Unknown", description="Nama customer")
+    phone_number: str = Field(
+        default="Tidak diketahui", description="Nomor telepon customer"
+    )
+    distance: Optional[float] = Field(default=None, description="Jarak order dalam km")
+    address: str = Field(
+        default="Tidak diketahui", description="Alamat atau URL Google Maps"
+    )
+    kecamatan: Optional[str] = Field(default=None, description="Nama kecamatan")
+    kelurahan: Optional[str] = Field(default=None, description="Nama kelurahan")
+    total_amount: float = Field(default=0, description="Total harga jajan")
+    payment_type: str = Field(default="unknown", description="Tipe pembayaran")
+    jenis_pengiriman: Optional[str] = Field(
+        default=None, description="Jenis pengiriman"
+    )
+    notes: Optional[str] = Field(default=None, description="Catatan tambahan")
+    struk_url: Optional[str] = Field(default=None, description="URL struk order")
+    status: str = Field(default="unknown", description="Status pembayaran")
+    tambahan_waktu: int = Field(
+        default=0, description="Tambahan waktu pengiriman dalam menit"
+    )
+    from_number: Optional[str] = Field(
+        default=None, description="Nomor pengirim (outlet)"
+    )
+
+
 agent = StrukMaker()
 
 
@@ -49,7 +76,7 @@ def create_order(order: OrderRequest):
 
 
 @app.post("/forward_struk")
-def forward_order(order: OrderRequest):
+def forward_order(order: PayloadRequest):
     payload_dict = order.dict()
     response = forward_struk(payload_dict)
     return response
