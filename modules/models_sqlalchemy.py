@@ -144,6 +144,7 @@ class Outlet(Base):
     conditions = relationship(
         "Condition", secondary=outlet_condition, back_populates="outlets"
     )
+    phone = Column(String(50), nullable=True, unique=True)
 
 
 class User(Base):

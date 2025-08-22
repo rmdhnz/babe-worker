@@ -27,6 +27,7 @@ class OrderRequest(BaseModel):
     user_id: int
     name: str
     jarak: float
+    address: str
     is_free_ongkir: bool
     telepon: str
     cells: List[Cell]
