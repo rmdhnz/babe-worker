@@ -1,4 +1,3 @@
-from trio import Condition
 from modules.crud_utility import *
 from modules.maps_utility import *
 from modules.olsera_service import *
@@ -8,12 +7,17 @@ from collections import defaultdict
 from modules.sqlalchemy_setup import get_db_session
 from dotenv import load_dotenv
 import os
+import threading
 
 from struk_forwarder import forward_struk
 
 
 load_dotenv()
 URL_DRIVER = os.getenv("URL_LIST_DRIVER")
+OLSERA_STRUK = os.getenv(
+    "STRUK_OLSERA",
+    "https://invoice.olsera.co.id/pos-receipt?lang=id&store=kulkasbabe&order_no=",
+)
 
 
 def search_ongkir_related_product(keywords: str, access_token: str) -> tuple:
@@ -342,8 +346,58 @@ class StrukMaker:
                 payment_currency_id="IDR",
             )
             update_status(order_id=order_id, status="Z", access_token=access_token)
+            outlet = (
+                session.query(Outlet)
+                .options(joinedload(Outlet.conditions))
+                .filter(Outlet.id == raw_cart["outlet_id"])
+                .first()
+            )
+            tambahan_waktu = sum((cond.nilai for cond in outlet.conditions), 0)
+            delivery = {"1": "FD", "2": "I", "3": "EX"}
+            location = parse_address(raw_cart["formatted_address"])
+            payload_request = {
+                "cust_name": raw_cart["name"],
+                "phone_number": raw_cart["telepon"],
+                "distance": raw_cart.get("jarak", 0.0),
+                "address": raw_cart.get("address", "Tidak diketahui"),
+                "kecamatan": location["kecamatan"],
+                "kelurahan": location["kelurahan"],
+                "total_amount": total_amount,
+                "payment_type": raw_cart.get("payment_type", "unknown"),
+                "jenis_pengiriman": delivery[
+                    str(raw_cart.get("delivery_type_id", "1"))
+                ],
+                "notes": raw_cart.get("notes"),
+                "struk_url": f"{OLSERA_STRUK}{order_no}",
+                "status": "lunas",
+                "tambahan_waktu": tambahan_waktu,
+                "from_number": outlet.phone,
+            }
+            from modules.maps_utility import estimasi_tiba
+
+            # Hitung estimasi tiba
+            max_luncur_str = estimasi_tiba(
+                raw_cart.get("jarak", 0),
+                delivery[str(raw_cart.get("delivery_type_id", "1"))],
+                datetime.now(),
+            )
+
+            max_luncur_dt = datetime.combine(
+                datetime.today(), datetime.strptime(max_luncur_str, "%H:%M").time()
+            )
+            tambahan_waktu = sum((cond.nilai for cond in outlet.conditions), 0)
+            max_luncur_dt += timedelta(minutes=int(float(tambahan_waktu)))
+
+            estimasi_final = max_luncur_dt.strftime("%H:%M")
+
+            print("Mengirim invoice ke grup...")
+            # forward_struk(payload_request)
+            threading.Thread(target=forward_struk, args=(payload_request,)).start()
+            print("Struk berhasil diteruskan ke Grup")
+
             return (
                 order_id,
                 order_no,
                 "Order berhasil dibuat dan ongkir telah diperbarui.",
+                estimasi_final,
             )
