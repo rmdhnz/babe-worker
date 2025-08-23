@@ -66,7 +66,7 @@ def forward_struk(payload: dict):
         "",
         "",
         "Makasih yaa Cah udah Jajan di Babe!",
-        f"Total Jajan: {payload.get('total_amount', 0)} (*{payload.get('payment_type', '').upper()}*)",
+        f"Total Jajan: {format_idr(payload.get('total_amount',0))} (*{payload.get('payment_type', '').upper()}*)",
         f"Cek Jajanmu di sini: {payload.get('struk_url', '')}\n"
         f"Jam Order: *{datetime.now().strftime('%H:%M')}*",
         "",
@@ -102,3 +102,11 @@ def forward_struk(payload: dict):
 
     except Exception as e:
         return {"status": 500, "message": f"Ada error: {str(e)}", "content": invoice}
+
+
+def format_idr(amount):
+    try:
+        amount = int(float(amount))
+        return f"IDR {amount:,}".replace(",", ".")
+    except Exception:
+        return f"IDR {amount}"

@@ -4,7 +4,8 @@ from pydantic import BaseModel, Field
 from typing import List, Literal, Optional
 from convert_rawcart_to_ord import StrukMaker
 from struk_forwarder import forward_struk
-
+from modules.maps_utility import estimasi_tiba
+from datetime import datetime, timedelta
 
 app = FastAPI()
 
@@ -29,6 +30,7 @@ class OrderRequest(BaseModel):
     jarak: float
     address: str
     is_free_ongkir: bool
+    formatted_address: str
     telepon: str
     cells: List[Cell]
     outlet_id: int
@@ -66,6 +68,12 @@ class PayloadRequest(BaseModel):
     )
 
 
+class PayloadEstimation(BaseModel):
+    distance: float
+    jenis_pengiriman: str
+    tambahan_waktu: int = 0
+
+
 agent = StrukMaker()
 
 
@@ -81,6 +89,26 @@ def forward_order(order: PayloadRequest):
     payload_dict = order.dict()
     response = forward_struk(payload_dict)
     return response
+
+
+@app.post("/estimation_time")
+def estimation_time(payload: PayloadEstimation):
+    # Buat estimasi tiba
+    max_luncur_str = estimasi_tiba(
+        payload.get("distance", 0),
+        payload.get("jenis_pengiriman", 0),
+        datetime.now(),
+    )
+
+    max_luncur_dt = datetime.combine(
+        datetime.today(), datetime.strptime(max_luncur_str, "%H:%M").time()
+    )
+    max_luncur_dt += timedelta(minutes=int(float(payload.get("tambahan_waktu", 0))))
+
+    max_luncur = max_luncur_dt.strftime("%H:%M")
+    return {
+        "estimasi_tiba": max_luncur,
+    }
 
 
 if __name__ == "__main__":

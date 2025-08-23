@@ -7,6 +7,7 @@ from collections import defaultdict
 from modules.sqlalchemy_setup import get_db_session
 from dotenv import load_dotenv
 import os
+import threading
 
 from struk_forwarder import forward_struk
 
@@ -353,7 +354,7 @@ class StrukMaker:
             )
             tambahan_waktu = sum((cond.nilai for cond in outlet.conditions), 0)
             delivery = {"1": "FD", "2": "I", "3": "EX"}
-            location = parse_address(raw_cart["address"])
+            location = parse_address(raw_cart["formatted_address"])
             payload_request = {
                 "cust_name": raw_cart["name"],
                 "phone_number": raw_cart["telepon"],
@@ -375,6 +376,7 @@ class StrukMaker:
 
             print("Mengirim invoice ke grup...")
             # forward_struk(payload_request)
+            threading.Thread(target=forward_struk, args=(payload_request,)).start()
             print("Struk berhasil diteruskan ke Grup")
 
             return (

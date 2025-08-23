@@ -12,6 +12,7 @@ from sqlalchemy import (
     ForeignKey,
     Table,
     Time,
+    Enum,
     TIMESTAMP,
 )
 from sqlalchemy.orm import relationship
@@ -145,6 +146,7 @@ class Outlet(Base):
         "Condition", secondary=outlet_condition, back_populates="outlets"
     )
     phone = Column(String(50), nullable=True, unique=True)
+    order_histories = relationship("Order", back_populates="outlet")
 
 
 class User(Base):
@@ -173,3 +175,46 @@ class Condition(Base):
     outlets = relationship(
         "Outlet", secondary=outlet_condition, back_populates="conditions"
     )
+
+
+class Order(Base):
+    __tablename__ = "order_histories"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False)
+    outlet_id = Column(BigInteger, ForeignKey("outlets.id"), nullable=False)
+    delivery_id = Column(BigInteger, ForeignKey("deliveries.id"), nullable=False)
+    order_id = Column(BigInteger, nullable=False)
+    order_no = Column(String(255), nullable=False)
+    items = Column(JSON, nullable=False)
+    subtotal = Column(Integer, nullable=False)
+    shipping_fee = Column(Integer, nullable=False)
+    tax = Column(Integer, nullable=False)
+    discount_amount = Column(Integer, nullable=False, default=0)
+    voucher_code = Column(String(255), nullable=True)
+    total = Column(Integer, nullable=False)
+    koin = Column(Integer, nullable=False, default=0)
+    distance_km = Column(Float, nullable=False)
+    delivery_address = Column(String(255), nullable=False)
+    delivery_latitude = Column(DECIMAL(10, 8), nullable=True)
+    delivery_longitude = Column(DECIMAL(11, 8), nullable=True)
+    payment_type = Column(String(255), nullable=False, default="QRIS")
+    payment_status = Column(
+        Enum(
+            "pending",
+            "success",
+            "failed",
+            "expired",
+            "canceled",
+            name="payment_status_enum",
+        ),
+        nullable=False,
+        default="pending",
+    )
+    notes = Column(Text, nullable=True)
+    estimasi_tiba = Column(Time, nullable=True)
+    created_at = Column(TIMESTAMP, nullable=True)
+    updated_at = Column(TIMESTAMP, nullable=True)
+
+    # Relasi
+    outlet = relationship("Outlet", back_populates="order_histories")
