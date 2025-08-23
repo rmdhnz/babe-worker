@@ -373,6 +373,22 @@ class StrukMaker:
                 "tambahan_waktu": tambahan_waktu,
                 "from_number": outlet.phone,
             }
+            from modules.maps_utility import estimasi_tiba
+
+            # Hitung estimasi tiba
+            max_luncur_str = estimasi_tiba(
+                raw_cart.get("jarak", 0),
+                delivery[str(raw_cart.get("delivery_type_id", "1"))],
+                datetime.now(),
+            )
+
+            max_luncur_dt = datetime.combine(
+                datetime.today(), datetime.strptime(max_luncur_str, "%H:%M").time()
+            )
+            tambahan_waktu = sum((cond.nilai for cond in outlet.conditions), 0)
+            max_luncur_dt += timedelta(minutes=int(float(tambahan_waktu)))
+
+            estimasi_final = max_luncur_dt.strftime("%H:%M")
 
             print("Mengirim invoice ke grup...")
             # forward_struk(payload_request)
@@ -383,4 +399,5 @@ class StrukMaker:
                 order_id,
                 order_no,
                 "Order berhasil dibuat dan ongkir telah diperbarui.",
+                estimasi_final,
             )
