@@ -5,21 +5,40 @@ import requests
 from datetime import datetime, timedelta
 from modules.maps_utility import estimasi_tiba
 
+# Konfigurasi koneksi RabbitMQ
 credentials = pika.PlainCredentials("guest", "guest")
 parameters = pika.ConnectionParameters(
-    host="31.97.106.30", port=5679, credentials=credentials
+    host="31.97.106.30",
+    port=5679,
+    credentials=credentials,
+    heartbeat=600,  # cegah idle disconnect
+    blocked_connection_timeout=300,  # timeout koneksi
 )
 
-connection = pika.BlockingConnection(parameters)
-channel = connection.channel()
+connection = None
+channel = None
 
 
-channel.queue_declare(queue="whatsapp_hook_queue", durable=True)
-channel.queue_declare(queue="whatsapp_message_queue", durable=True)
+def get_channel():
+    """
+    Pastikan koneksi & channel RabbitMQ tetap hidup.
+    Kalau sudah close, bikin baru.
+    """
+    global connection, channel
+
+    if connection is None or connection.is_closed:
+        connection = pika.BlockingConnection(parameters)
+
+    if channel is None or channel.is_closed:
+        channel = connection.channel()
+        channel.queue_declare(queue="whatsapp_hook_queue", durable=True)
+        channel.queue_declare(queue="whatsapp_message_queue", durable=True)
+
+    return channel
 
 
 def forward_struk(payload: dict):
-    # Dapatkan list grup yang akan di forward
+    # Dapatkan list grup aktif
     group_ids = (
         requests.get("http://31.97.106.30:3000/api/groups/active")
         .json()
@@ -45,16 +64,19 @@ def forward_struk(payload: dict):
         if payload.get("jenis_pengiriman") == "FD"
         else f"ESTIMASI SAMPAI: {max_luncur}"
     )
+
     distance = payload.get("distance", 0)
     if distance > 14:
         distance_str = str(int(distance))
     else:
         distance_str = f"{distance:.1f}"
+
     result = (
         f"Jarak: {distance_str} km "
         f"(*{payload.get('kelurahan', 'Unk. Kelurahan')}, "
         f"{payload.get('kecamatan', '').replace('Kecamatan ', '').replace('Kec. ', '').replace('kecamatan', '').replace('kec.', '')}*)"
     )
+
     invoice_lines = [
         f"Nama: {payload.get('cust_name', 'Unknown')}",
         f"Nomor Telepon: {payload.get('phone_number', 'Tidak diketahui')}",
@@ -77,7 +99,9 @@ def forward_struk(payload: dict):
 
     invoice = "\n".join([line for line in invoice_lines if line is not None])
     print("Mulai mengirim invoice ke grup WhatsApp...")
+
     try:
+        ch = get_channel()
         for group_id in group_ids:
             group_payload = {
                 "command": "send_message",
@@ -85,7 +109,7 @@ def forward_struk(payload: dict):
                 "number_recipient": group_id.get("groupId"),
                 "message": invoice,
             }
-            channel.basic_publish(
+            ch.basic_publish(
                 exchange="",
                 routing_key="whatsapp_message_queue",
                 body=json.dumps(group_payload),
@@ -101,6 +125,7 @@ def forward_struk(payload: dict):
         }
 
     except Exception as e:
+        print(f"[ERROR] {str(e)}")
         return {"status": 500, "message": f"Ada error: {str(e)}", "content": invoice}
 
 
