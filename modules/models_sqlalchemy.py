@@ -218,3 +218,14 @@ class Order(Base):
 
     # Relasi
     outlet = relationship("Outlet", back_populates="order_histories")
+
+
+class StrukLog(Base):
+    __tablename__ = "struk_logs"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    order_id = Column(BigInteger, nullable=False)
+    order_no = Column(String(255), nullable=False)
+    is_forward = Column(Boolean, default=False)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())

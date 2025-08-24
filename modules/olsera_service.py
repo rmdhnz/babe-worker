@@ -125,13 +125,15 @@ def update_order_detail(
     try:
         response = requests.post(url, json=params, headers=headers)
         response.raise_for_status()  # Akan memunculkan exception jika status bukan 2xx
-        return response.json()
+        return True, response.json()
     except requests.exceptions.HTTPError as http_err:
         print(
             f"HTTP error occurred on order detail update: {http_err} - Response: {response.text}"
         )
+        return False, None
     except Exception as err:
         print(f"Other error occurred on order detail update: {err}")
+        return False, None
 
 
 def update_status(order_id: str, status: str, access_token: str) -> None:
@@ -289,9 +291,10 @@ def add_prod_to_order(
             f"HTTP error occurred on product inputting: {http_err} - Response: {response.text}"
         )
         print(f"Produk dengan ID : {product_id} stock tidak tersedia")
-        return False, response.json()
+        return False, None
     except Exception as err:
         print(f"Other error occurred on product inputting: {err}")
+        return False, None
 
 
 def fetch_product_combo_details(combo_id: str, access_token: str):
