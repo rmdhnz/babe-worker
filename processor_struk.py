@@ -3,7 +3,6 @@ from fastapi import FastAPI
 from pydantic import BaseModel, Field
 from typing import List, Literal, Optional
 from convert_rawcart_to_ord import StrukMaker
-from struk_forwarder import forward_struk
 from modules.maps_utility import estimasi_tiba
 from datetime import datetime, timedelta
 
@@ -81,13 +80,6 @@ agent = StrukMaker()
 def create_order(order: OrderRequest):
     payload_dict = order.dict()
     response = agent.handle_order(payload_dict)
-    return response
-
-
-@app.post("/forward_struk")
-def forward_order(order: PayloadRequest):
-    payload_dict = order.dict()
-    response = forward_struk(payload_dict)
     return response
 
 

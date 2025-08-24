@@ -157,7 +157,7 @@ class StrukMaker:
     def handle_order(self, raw_cart):
         if raw_cart["express_delivery"]:
             total_driver = self.count_driver_available()
-            if total_driver < 2:
+            if total_driver < 20:
                 print(
                     "Jumlah driver tidak memenuhi untuk express. Jumlah driver saat ini ",
                     total_driver,
@@ -167,6 +167,7 @@ class StrukMaker:
                         "success": False,
                         "message": "Jumlah Driver untuk Express sedang tidak tersedia, silahkan pilih Free Delivery atau Instant Delivery",
                         "data": {},
+                        "total_driver": total_driver,
                     }
                 )
                 # return (
