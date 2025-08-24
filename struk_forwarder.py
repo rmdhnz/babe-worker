@@ -4,41 +4,59 @@ import time
 import requests
 from datetime import datetime, timedelta
 from modules.maps_utility import estimasi_tiba
-
-# Konfigurasi koneksi RabbitMQ
-credentials = pika.PlainCredentials("guest", "guest")
-parameters = pika.ConnectionParameters(
-    host="31.97.106.30",
-    port=5679,
-    credentials=credentials,
-    heartbeat=600,  # cegah idle disconnect
-    blocked_connection_timeout=300,  # timeout koneksi
-)
+from modules.models_sqlalchemy import StrukLog
+from modules.sqlalchemy_setup import get_db_session
 
 connection = None
 channel = None
 
 
 def get_channel():
-    """
-    Pastikan koneksi & channel RabbitMQ tetap hidup.
-    Kalau sudah close, bikin baru.
-    """
+    """Cek koneksi RabbitMQ, kalau mati otomatis reconnect"""
     global connection, channel
 
-    if connection is None or connection.is_closed:
-        connection = pika.BlockingConnection(parameters)
+    try:
+        if connection is None or connection.is_closed:
+            reconnect()
 
-    if channel is None or channel.is_closed:
-        channel = connection.channel()
-        channel.queue_declare(queue="whatsapp_hook_queue", durable=True)
-        channel.queue_declare(queue="whatsapp_message_queue", durable=True)
+        if channel is None or channel.is_closed:
+            channel = connection.channel()
+            channel.queue_declare(queue="whatsapp_hook_queue", durable=True)
+            channel.queue_declare(queue="whatsapp_message_queue", durable=True)
+
+    except Exception as e:
+        print(f"[RabbitMQ] Reconnect gagal: {str(e)}")
+        reconnect()
 
     return channel
 
 
+def reconnect():
+    """Buat ulang koneksi RabbitMQ"""
+    global connection, channel
+    print("[RabbitMQ] Mencoba reconnect...")
+
+    credentials = pika.PlainCredentials("guest", "guest")
+    parameters = pika.ConnectionParameters(
+        host="31.97.106.30",
+        port=5679,
+        credentials=credentials,
+        heartbeat=600,  # cegah idle disconnect
+        blocked_connection_timeout=300,
+    )
+
+    connection = pika.BlockingConnection(parameters)
+    channel = connection.channel()
+    channel.queue_declare(queue="whatsapp_hook_queue", durable=True)
+    channel.queue_declare(queue="whatsapp_message_queue", durable=True)
+    print("[RabbitMQ] Reconnect berhasil.")
+
+
 def forward_struk(payload: dict):
-    # Dapatkan list grup aktif
+    # Ambil channel aktif
+    ch = get_channel()
+
+    # Ambil list grup dari API
     group_ids = (
         requests.get("http://31.97.106.30:3000/api/groups/active")
         .json()
@@ -56,7 +74,6 @@ def forward_struk(payload: dict):
         datetime.today(), datetime.strptime(max_luncur_str, "%H:%M").time()
     )
     max_luncur_dt += timedelta(minutes=int(float(payload.get("tambahan_waktu", 0))))
-
     max_luncur = max_luncur_dt.strftime("%H:%M")
 
     max_luncur_line = (
@@ -98,10 +115,9 @@ def forward_struk(payload: dict):
     ]
 
     invoice = "\n".join([line for line in invoice_lines if line is not None])
-    print("Mulai mengirim invoice ke grup WhatsApp...")
 
+    print("Mulai mengirim invoice ke grup WhatsApp...")
     try:
-        ch = get_channel()
         for group_id in group_ids:
             group_payload = {
                 "command": "send_message",
@@ -116,6 +132,18 @@ def forward_struk(payload: dict):
                 properties=pika.BasicProperties(delivery_mode=2),
             )
             time.sleep(3)
+
+        # Update log di DB
+        with get_db_session() as session:
+            log_entry = (
+                session.query(StrukLog)
+                .filter(StrukLog.order_id == payload.get("order_id"))
+                .first()
+            )
+            if log_entry:
+                log_entry.is_forward = True
+                session.commit()
+            print("Log forwarding berhasil diupdate...")
 
         print("Selesai mengirim invoice ke grup WhatsApp.")
         return {
