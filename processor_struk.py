@@ -43,6 +43,7 @@ class OrderRequest(BaseModel):
 
 class PayloadRequest(BaseModel):
     cust_name: str = Field(default="Unknown", description="Nama customer")
+    order_id: Optional[int] = Field(default=None, description="ID order")
     phone_number: str = Field(
         default="Tidak diketahui", description="Nomor telepon customer"
     )
