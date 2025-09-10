@@ -1,3 +1,4 @@
+from itertools import product
 from modules.crud_utility import *
 from modules.maps_utility import *
 from modules.olsera_service import *
@@ -170,11 +171,6 @@ class StrukMaker:
                         "total_driver": total_driver,
                     }
                 )
-                # return (
-                #     None,
-                #     None,
-                #     "Jumlah Driver untuk Express sedang tidak tersedia, silahkan pilih Free Delivery atau Instant Delivery",
-                # )
         access_token = get_token_by_outlet_id(raw_cart["outlet_id"])
         with get_db_session() as session:
             user = session.query(User).filter(User.id == raw_cart["user_id"]).first()
@@ -201,6 +197,18 @@ class StrukMaker:
                 print(
                     f"Order berhasil dibuat dengan ID: {order_id} dan Nomor: {order_no}"
                 )
+                if raw_cart["payment_type"] == "QRIS":
+                    return JSONResponse(
+                        content={
+                            "success": True,
+                            "message": "Order berhasil dibuat untuk pembayaran QRIS",
+                            "data": {
+                                "order_id": order_id,
+                                "order_no": order_no,
+                            },
+                        }
+                    )
+
             except Exception as e:
                 print(f"Gagal membuat order: {e}")
                 return JSONResponse(
@@ -526,3 +534,127 @@ class StrukMaker:
                     },
                 }
             )
+
+    def process_items(self, raw_cart, order_id, access_token):
+        carts = raw_cart["cells"]
+        main_product = []
+        additional_product = []
+
+        for cart in carts:
+            if cart.get("prodvar_id"):
+                main_product.append(
+                    {
+                        "product_id": cart["id"],
+                        "prodvar_id": cart["prodvar_id"],
+                        "name": cart["name"],
+                        "qty": cart["qty"],
+                        "product_type_id": cart["product_type_id"],
+                        "disc": float(cart["disc"] or 0),
+                    }
+                )
+            else:
+                additional_product.append(
+                    {
+                        "product_id": cart["id"],
+                        "name": cart["name"],
+                        "qty": cart["qty"],
+                        "product_type_id": cart["product_type_id"],
+                        "disc": float(cart.get("disc") or 0),
+                    }
+                )
+
+        aggregated_carts = self.aggregate_cart_by_prodvar(main_product)
+        success, msg = self.move_cart_to_order(
+            aggregated_carts, order_id, access_token=access_token
+        )
+        if not success:
+            update_status(order_id=order_id, status="X", access_token=access_token)
+            return JSONResponse(content={"success": False, "message": msg})
+
+        for add_item in additional_product:
+            try:
+                if add_item["product_type_id"] == 3:
+                    print(f"Additional product (Combo) : {add_item['name']}")
+                    # Combo
+                    combo_details = fetch_product_combo_details(
+                        add_item["product_id"], access_token
+                    )
+                    combo_items = combo_details["data"]["items"]["data"]
+                    for item in combo_items:
+                        success, data = add_prod_to_order(
+                            order_id=order_id,
+                            product_id=item.get("product_id"),
+                            quantity=1,
+                            access_token=access_token,
+                        )
+                        if not success:
+                            update_status(
+                                order_id=order_id, status="X", access_token=access_token
+                            )
+                            return JSONResponse(
+                                content={
+                                    "success": False,
+                                    "message": f"Stock Produk {item} tidak mencukupi",
+                                }
+                            )
+                elif add_item["product_type_id"] == 4 : 
+                    print(f"Additional Produc (Merch) : {add_item["name"]}")
+
+                    success,_ = add_prod_to_order(order_id=order_id,product_id=add_item["product_id"],access_token=access_token)
+
+                    if not success : 
+                        update_status(order_id=order_id,status="X",access_token=access_token)
+                        return JSONResponse(content={
+                            "success" : False,
+                            "message" : f"Stock produk {add_item['name']} tidak mencukupi",
+                        })
+                    order_details = fetch_order_details(order_id=order_id,access_token=access_token)
+                    order_details = order_details["data"]["orderitems"]
+                    matching_detail = next((detail for detail in order_details if detail["product_id"] == add_item["product_id"]),None)
+
+                    if matching_detail : 
+                        success, _ = update_order_detail(
+                            order_id=order_id,
+                            id=matching_detail["id"],
+                            disc="0",
+                            qty=1,
+                            price="0",
+                            note="Tukar Koin",
+                            access_token=access_token
+                        )
+                        if not success : 
+                            update_status(order_id=order_id,status="X",access_token=access_token)
+                            return JSONResponse(content={
+                                "success" : False,
+                                "message" : f"Gagal Update detail merchandise di order",
+                            })
+                    else  : 
+                        update_status(
+                            order_id=order_id,
+                            status="X",
+                            access_token=access_token,
+                        )
+                        print(f"Order detail tidak ditemukan untuk produk {add_item['name']}")
+                        return JSONResponse(content={
+                            "success": False,
+                            "message": f"Order detail tidak ditemukan untuk produk {add_item['name']}",
+                        })
+                else : 
+                    success,msg =  add_prod_to_order(order_id=order_id,product_id=add_item["product_id"],quantity=1,access_token=access_token)
+                    if not success : 
+                        update_status(order_id=order_id,status="X",access_token=access_token)
+                        return JSONResponse(content={
+                            "success" : True,
+                            "message" : f"Stock Produk {item} tidak mencukupi",
+                        })
+            except Exception as e : 
+                update_status(
+                    order_id=order_id,
+                    status='X',
+                    access_token=access_token
+                )
+                print(f"Gagagl menambahkan produk tambahan yaitu {add_item["name"]} :  {e}")
+                return JSONResponse(content={
+                    "success" : False,
+                    "message" : f"Gagal menambahkan produk tambahan yaitu {add_item['name']}, stok tidak mencukupi. Struk dibatalkan.",
+                })

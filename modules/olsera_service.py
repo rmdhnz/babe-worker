@@ -315,6 +315,19 @@ def fetch_product_combo_details(combo_id: str, access_token: str):
         print(f"Other error occurred: {err}")
 
 
+def get_new_api(access_token: str, page: int = 1, per_page: int = 15):
+    url = f"https://api-open.all.olsera.indociti.com/api/open-api/v1/en/productcombo-with-product"
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    params = {"page": page, "per_page": per_page}
+    response = requests.get(url, headers=headers, params=params)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"[ERROR] API failed: {response.status_code} - {response.text}")
+        return None
+
+
 def fetch_products_page(token: str, page: int, per_page: int = 15):
     url = f"https://api-open.olsera.co.id/api/open-api/v1/en/product"
     headers = {"Authorization": f"Bearer {token}"}

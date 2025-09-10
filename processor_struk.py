@@ -1,4 +1,3 @@
-from re import S
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 from typing import List, Literal, Optional

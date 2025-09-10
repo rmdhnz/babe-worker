@@ -62,6 +62,7 @@ def forward_struk(payload: dict):
         .json()
         .get("data", None)
     )
+    print(f"Group ids : {json.dumps(group_ids,indent=2)}")
 
     # Buat estimasi tiba
     max_luncur_str = estimasi_tiba(
