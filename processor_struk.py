@@ -38,6 +38,8 @@ class OrderRequest(BaseModel):
     express_delivery: Optional[bool] = False
     delivery_type_id: Optional[int] = None
     notes: Optional[str] = None
+    order_id: Optional[int] = None
+    order_no: Optional[str] = None
 
 
 class PayloadRequest(BaseModel):
@@ -83,12 +85,19 @@ def create_order(order: OrderRequest):
     response = agent.handle_order(payload_dict)
     return response
 
+@app.post("/process_after_qris")
+def process_after_qris(order: PayloadRequest):
+    payload_dict = order.dict()
+    response = agent.process_qris_payment(payload_dict)
+    return response
+
 
 @app.post("/forward_struk")
 def forward_order(order: PayloadRequest):
     payload_dict = order.dict()
     response = forward_struk(payload_dict)
     return response
+
 
 
 @app.post("/estimation_time")

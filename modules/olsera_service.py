@@ -388,25 +388,3 @@ def fetch_combo_detail(token, combo_id):
             print(f"[ERROR] Unknown error saat fetch combo detail ID {combo_id}: {err}")
             break
     return {}
-
-
-def process_item(
-    order_id: str, nama_produk: str, qty: int, cart: list, access_token: str
-):
-    outlet_id = 1
-    with get_db_session() as session:
-        produk = (
-            session.query(Product)
-            .options(joinedload(Product.stock))
-            .filter(
-                Product.name.ilike(f"%{nama_produk}%"), Product.outlet_id == outlet_id
-            )
-            .first()
-        )
-        if not produk:
-            logger.error("Produk cocok dengan '%s' tidak ditemukan.", nama_produk)
-            update_status(order_id, "X", access_token=access_token)
-            return (
-                False,
-                f"Gagal menemukan produk dengan nama '{nama_produk}'. Coba gunakan nama lengkap produk sesuai database.",
-            )
