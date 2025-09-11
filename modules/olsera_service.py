@@ -315,6 +315,19 @@ def fetch_product_combo_details(combo_id: str, access_token: str):
         print(f"Other error occurred: {err}")
 
 
+def get_new_api(access_token: str, page: int = 1, per_page: int = 15):
+    url = f"https://api-open.all.olsera.indociti.com/api/open-api/v1/en/productcombo-with-product"
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    params = {"page": page, "per_page": per_page}
+    response = requests.get(url, headers=headers, params=params)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"[ERROR] API failed: {response.status_code} - {response.text}")
+        return None
+
+
 def fetch_products_page(token: str, page: int, per_page: int = 15):
     url = f"https://api-open.olsera.co.id/api/open-api/v1/en/product"
     headers = {"Authorization": f"Bearer {token}"}
@@ -375,25 +388,3 @@ def fetch_combo_detail(token, combo_id):
             print(f"[ERROR] Unknown error saat fetch combo detail ID {combo_id}: {err}")
             break
     return {}
-
-
-def process_item(
-    order_id: str, nama_produk: str, qty: int, cart: list, access_token: str
-):
-    outlet_id = 1
-    with get_db_session() as session:
-        produk = (
-            session.query(Product)
-            .options(joinedload(Product.stock))
-            .filter(
-                Product.name.ilike(f"%{nama_produk}%"), Product.outlet_id == outlet_id
-            )
-            .first()
-        )
-        if not produk:
-            logger.error("Produk cocok dengan '%s' tidak ditemukan.", nama_produk)
-            update_status(order_id, "X", access_token=access_token)
-            return (
-                False,
-                f"Gagal menemukan produk dengan nama '{nama_produk}'. Coba gunakan nama lengkap produk sesuai database.",
-            )
