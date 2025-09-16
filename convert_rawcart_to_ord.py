@@ -1,4 +1,3 @@
-from itertools import product
 from modules.crud_utility import *
 from modules.maps_utility import *
 from modules.olsera_service import *
@@ -53,17 +52,20 @@ class StrukMaker:
         carts_by_product_id: dict {product_id: Cart}
         """
         if not cart:
-            print("Cart kosong, tidak ada item untuk dipindahkan.")
+            print("Cart kosong, tidak ada item untuk dipindahkan. Struk di batalkan")
             return False, "Cart kosong, tidak ada item untuk dipindahkan."
 
         # Tambahkan produk ke order
-        for item in cart:
+        for idx,item in enumerate(cart):
             prodvar_id = item["prodvar_id"]
             qty = item["qty"]
             try:
-                success, resp = add_prod_to_order(
-                    order_id, prodvar_id, qty, access_token=access_token
-                )
+                # success, resp = add_prod_to_order(
+                #     order_id, prodvar_id, qty, access_token=access_token
+                # )
+                discount = cart[idx]["disc"] if idx < len(cart) else 0.0
+                print("Mencoba API Baru...")
+                success,resp = add_prod_with_update_detail(order_id=str(order_id),product_id=str(prodvar_id),quantity=qty,disc=discount,price=item["harga_satuan"],                    access_token=access_token,note="Order web")
                 if not success:
                     print(
                         msg := f"Stok produk {item['name']} tidak mencukupi. Struk dibatalkan"
@@ -83,36 +85,6 @@ class StrukMaker:
                     False,
                     f"Ada kesalahan saat memasukkan produk ke order. Error: {e}",
                 )
-
-        # Update diskon item berdasarkan data cart
-        try:
-            ord_detail = fetch_order_details(
-                order_id=order_id, access_token=access_token
-            )
-            orders = ord_detail["data"]["orderitems"]
-        except Exception as e:
-            return False, f"Gagal mengambil detail order: {e}"
-
-        for idx, item in enumerate(orders):
-            item_id = item["id"]
-            item_qty = item["qty"]
-            item_disc = cart[idx]["disc"] if idx < len(cart) else 0.0
-            item_price = int(float(item.get("fprice", 0).replace(".", "")))
-
-            try:
-                success, resp = update_order_detail(
-                    order_id=str(order_id),
-                    id=str(item_id),
-                    disc=str(item_disc),
-                    price=str(item_price),
-                    qty=str(item_qty),
-                    note="Promo Paket",
-                    access_token=access_token,
-                )
-                if not success:
-                    return False, "Gagal update detail paket di order."
-            except Exception as e:
-                return False, "Gagal update detail paket di order."
         print(
             "Semua item berhasil dipindahkan ke order dan diskon paket telah diperbarui."
         )
@@ -130,7 +102,6 @@ class StrukMaker:
                 "qty": 0,
                 "disc": 0.0,
                 "harga_satuan": 0.0,
-                "harga_total": 0.0,
             }
         )
 
@@ -139,10 +110,11 @@ class StrukMaker:
             if agg_by_prodvar[pvar]["prodvar_id"] is None:
                 agg_by_prodvar[pvar]["prodvar_id"] = pvar
                 agg_by_prodvar[pvar]["name"] = item["name"]
-                agg_by_prodvar[pvar]["product_id"] = item["product_id"]
+                # agg_by_prodvar[pvar]["product_id"] = item["product_id"]
 
             agg_by_prodvar[pvar]["qty"] += item["qty"]
             agg_by_prodvar[pvar]["disc"] += float(item.get("disc", 0))
+            agg_by_prodvar[pvar]["harga_satuan"] += float(item["harga_satuan"])
         aggregated_by_prodvar = list(agg_by_prodvar.values())
         return aggregated_by_prodvar
 
@@ -195,8 +167,16 @@ class StrukMaker:
                     access_token=access_token,
                 )
                 print(
-                    f"Order berhasil dibuat dengan ID: {order_id} dan Nomor: {order_no}"
+                    f"Order berhasil dibuat dengan ID: {order_id} dan Nomor: {order_no}. Order dimasukkan ke dalam log."
                 )
+                log_dir = "log"
+                log_file = os.path.join(log_dir,"order.log")
+                os.makedirs(log_dir,exist_ok=True)
+                now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+                with open(log_file,"a",encoding="utf-8") as f : 
+                    f.write(f"{order_no}|{order_id}|{now_str}\n")
+
                 if raw_cart["payment_type"] == "QRIS":
                     return JSONResponse(
                         content={
@@ -219,6 +199,9 @@ class StrukMaker:
                     }
                 )
                 # return None, None, f"Gagal membuat order: {e}"
+
+            
+            print("Mulai memproses item")
 
             result = self.process_items(raw_cart, order_id, access_token)
             if not result["success"]:
@@ -347,7 +330,6 @@ class StrukMaker:
         carts = raw_cart["cells"]
         main_product = []
         additional_product = []
-
         for cart in carts:
             if cart.get("prodvar_id"):
                 main_product.append(
@@ -355,6 +337,7 @@ class StrukMaker:
                         "product_id": cart["id"],
                         "prodvar_id": cart["prodvar_id"],
                         "name": cart["name"],
+                        "harga_satuan" : cart["harga_satuan"],
                         "qty": cart["qty"],
                         "product_type_id": cart["product_type_id"],
                         "disc": float(cart["disc"] or 0),
@@ -366,12 +349,17 @@ class StrukMaker:
                         "product_id": cart["id"],
                         "name": cart["name"],
                         "qty": cart["qty"],
+                        "harga_satuan" : cart.get("harga_satuan",0.0),
                         "product_type_id": cart["product_type_id"],
                         "disc": float(cart.get("disc") or 0),
                     }
                 )
+        
+        print("Mulai agregasi produk...")
 
         aggregated_carts = self.aggregate_cart_by_prodvar(main_product)
+        print("SELESAI AGREGASI...")
+        print("Move cart to order..")
         success, msg = self.move_cart_to_order(
             aggregated_carts, order_id, access_token=access_token
         )

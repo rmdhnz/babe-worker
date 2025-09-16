@@ -296,6 +296,8 @@ def add_prod_to_order(
         print(f"Other error occurred on product inputting: {err}")
         return False, None
 
+def add_item_combo(order_id:str,item_combo_id:str,item_combo_qty:int) : 
+    pass
 
 def fetch_product_combo_details(combo_id: str, access_token: str):
     url = "https://api-open.olsera.co.id/api/open-api/v1/en/productcombo/detail"
@@ -313,19 +315,6 @@ def fetch_product_combo_details(combo_id: str, access_token: str):
         print(f"HTTP error occurred: {http_err} - Response: {response.text}")
     except Exception as err:
         print(f"Other error occurred: {err}")
-
-
-def get_new_api(access_token: str, page: int = 1, per_page: int = 15):
-    url = f"https://api-open.all.olsera.indociti.com/api/open-api/v1/en/productcombo-with-product"
-    headers = {"Authorization": f"Bearer {access_token}"}
-
-    params = {"page": page, "per_page": per_page}
-    response = requests.get(url, headers=headers, params=params)
-    if response.status_code == 200:
-        return response.json()
-    else:
-        print(f"[ERROR] API failed: {response.status_code} - {response.text}")
-        return None
 
 
 def fetch_products_page(token: str, page: int, per_page: int = 15):
@@ -388,3 +377,53 @@ def fetch_combo_detail(token, combo_id):
             print(f"[ERROR] Unknown error saat fetch combo detail ID {combo_id}: {err}")
             break
     return {}
+
+
+def add_prod_with_update_detail(order_id:str,product_id:str,quantity:int,disc:int,price:str,note:str,access_token:str ) : 
+    url = "https://api-open.olsera.co.id/api/open-api/v1/en/order/openorder/additem-with-updatedetail"
+    
+    params = { 
+        "order_id" : order_id,
+        "item_products" : product_id,
+        "item_qty" : quantity,
+        "discount" : disc,
+        "note": note,
+        "price": price,
+        "qty" : quantity
+    }
+
+    headers = {
+        "Authorization" : f"Bearer {access_token}",
+        "Content-Type" : "application/json"
+    }
+
+    try : 
+        response = requests.post(url,json=params,headers=headers)
+        response.raise_for_status()
+        return True, response.json()
+    except requests.exceptions.HTTPError as http_err: 
+        print(f"HTTP error occurred on order detail update: {http_err} - Response: {response.text}")
+        return False, None
+
+
+def add_combo_to_order(order_id:str, combo_id:str,quantity:int, combo_items:list,access_token) : 
+    url = "https://api-open.olsera.co.id/api/open-api/v1/en/order/openorder/additemcombo"
+
+    params = {
+        "order_id" : order_id,
+        "item_combo_id" : combo_id,
+        "item_combo_qty" : quantity,
+        "item_combo_items" : combo_items,
+    }
+
+    headers = {
+        "Authorization" : f"Bearer {access_token}",
+        "Content-Type" : "application/json"
+    }
+    try : 
+        response = requests.post(url,json=params,headers=headers)
+        response.raise_for_status()
+        return True, response.json()
+    except requests.exceptions.HTTPError as http_err : 
+        print(f"HTTP error occurred on order detail update: {http_err} - Response: {response.text}")
+        return False, None
