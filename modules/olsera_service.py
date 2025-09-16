@@ -379,6 +379,19 @@ def fetch_combo_detail(token, combo_id):
     return {}
 
 
+def combo_with_product(access_token: str, page: int, per_page: int):
+    url = "https://api-open.olsera.co.id/api/open-api/v1/en/productcombo-with-product"
+    headers = {"Accept": "application/json", "Authorization": f"Bearer {access_token}"}
+    params = {"page": page, "per_page": per_page}
+
+    response = requests.get(url, headers=headers, params=params)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"[ERROR] API failed: {response.status_code} - {response.text}")
+        return None
+
+
 def add_prod_with_update_detail(order_id:str,product_id:str,quantity:int,disc:int,price:str,note:str,access_token:str ) : 
     url = "https://api-open.olsera.co.id/api/open-api/v1/en/order/openorder/additem-with-updatedetail"
     

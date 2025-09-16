@@ -7,7 +7,6 @@ from modules.crud_utility import get_token_by_outlet_id
 from modules.maps_utility import estimasi_tiba
 from datetime import datetime, timedelta
 from struk_forwarder import forward_struk
-from modules.olsera_service import get_new_api
 
 app = FastAPI()
 
@@ -15,6 +14,7 @@ app = FastAPI()
 class Cell(BaseModel):
     id: int
     prodvar_id: Optional[str] = None
+    combo_id: Optional[int] = None
     name: str
     type: Literal["item", "paket"]
     product_type_id: int
@@ -103,11 +103,6 @@ def forward_order(order: PayloadRequest):
     return response
 
 
-@app.get("/tes")
-def tes():
-    token = get_token_by_outlet_id(1)
-    data = get_new_api(access_token=token, per_page=15, page=10)
-    return JSONResponse(content=data)
 
 
 @app.post("/estimation_time")

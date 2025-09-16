@@ -128,6 +128,7 @@ class StrukMaker:
             return -1
 
     def handle_order(self, raw_cart):
+        print(f"Memproses : {json.dumps(raw_cart['cells'],indent=2)}")
         if raw_cart["express_delivery"]:
             total_driver = self.count_driver_available()
             if total_driver < 20:
