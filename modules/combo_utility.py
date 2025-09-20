@@ -48,7 +48,7 @@ def sync_combos(outlet_id: int):
                 if should_exclude(combo["name"]):
                     continue
 
-                olsera_id = combo["id"]
+                olsera_combo_id = combo["id"]
                 name = combo["name"]
                 description = combo.get("description")
                 image = combo.get("photo_md")
@@ -63,13 +63,13 @@ def sync_combos(outlet_id: int):
                     name=VALUES(name), description=VALUES(description), image=VALUES(image),
                     price=VALUES(price), updated_at=NOW()
                 """,
-                    (olsera_id, outlet_id, name, description, image, price),
+                    (olsera_combo_id, outlet_id, name, description, image, price),
                 )
 
                 # Get local combo_id
                 cursor.execute(
                     "SELECT id FROM combos WHERE olsera_id = %s AND outlet_id = %s",
-                    (olsera_id, outlet_id),
+                    (olsera_combo_id, outlet_id),
                 )
                 res = cursor.fetchone()
                 if not res:
@@ -91,6 +91,7 @@ def sync_combos(outlet_id: int):
                 for item in items:
                     olsera_prod_id = item.get("product_id")
                     qty = item.get("qty", 1)
+                    item_id = item.get("id")
                     if not olsera_prod_id or qty <= 0:
                         continue
 
@@ -107,12 +108,12 @@ def sync_combos(outlet_id: int):
                         continue
 
                     local_product_id = product_res[0]
-                    pivotData.append((combo_db_id, local_product_id, qty))
+                    pivotData.append((combo_db_id, local_product_id,item_id,olsera_prod_id,olsera_combo_id, qty))
 
                 # Masukkan isi baru
                 if pivotData:
                     cursor.executemany(
-                        "INSERT INTO combo_product (combo_id, product_id, qty) VALUES (%s, %s, %s)",
+                        "INSERT INTO combo_product (combo_id, product_id,item_id,olsera_prod_id,olsera_combo_id, qty) VALUES (%s, %s, %s,%s,%s,%s)",
                         pivotData,
                     )
 

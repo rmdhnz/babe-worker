@@ -2,7 +2,7 @@ from modules.crud_utility import *
 from modules.maps_utility import *
 from modules.olsera_service import *
 import requests
-from modules.models_sqlalchemy import Outlet, StrukLog, User
+from modules.models_sqlalchemy import Outlet, StrukLog, User,Combo,Product,combo_product
 from collections import defaultdict
 from modules.sqlalchemy_setup import get_db_session
 from dotenv import load_dotenv
@@ -10,6 +10,8 @@ import os
 import threading
 from fastapi.responses import JSONResponse
 from struk_forwarder import forward_struk
+from sqlalchemy.orm import joinedload,Session
+from sqlalchemy import select
 
 load_dotenv()
 URL_DRIVER = os.getenv("URL_LIST_DRIVER")
@@ -46,7 +48,7 @@ class StrukMaker:
     def __init__(self):
         self.variant_priority_order = ["C", "P", "L", "X"]
 
-    def move_cart_to_order(self, cart: dict, order_id: str, access_token: str):
+    def move_cart_to_order(self, cart: dict, order_id: str, access_token: str,type_combo:bool = False):
         """
         Pindahkan semua item dalam cart ke order dengan ID order_id.
         carts_by_product_id: dict {product_id: Cart}
@@ -54,37 +56,63 @@ class StrukMaker:
         if not cart:
             print("Cart kosong, tidak ada item untuk dipindahkan. Struk di batalkan")
             return False, "Cart kosong, tidak ada item untuk dipindahkan."
+        
+        if not type_combo : 
+            print("Move items to order...")
 
-        # Tambahkan produk ke order
-        for idx,item in enumerate(cart):
-            prodvar_id = item["prodvar_id"]
-            qty = item["qty"]
-            try:
-                # success, resp = add_prod_to_order(
-                #     order_id, prodvar_id, qty, access_token=access_token
-                # )
-                discount = cart[idx]["disc"] if idx < len(cart) else 0.0
-                print("Mencoba API Baru...")
-                success,resp = add_prod_with_update_detail(order_id=str(order_id),product_id=str(prodvar_id),quantity=qty,disc=discount,price=item["harga_satuan"],                    access_token=access_token,note="Order web")
-                if not success:
+
+            # Tambahkan produk ke order
+            for idx,item in enumerate(cart):
+                prodvar_id = item["prodvar_id"]
+                qty = item["qty"]
+                try:
+                    # success, resp = add_prod_to_order(
+                    #     order_id, prodvar_id, qty, access_token=access_token
+                    # )
+                    discount = cart[idx]["disc"] if idx < len(cart) else 0.0
+                    print("Mencoba API Baru...")
+                    success,resp = add_prod_with_update_detail(order_id=str(order_id),product_id=str(prodvar_id),quantity=qty,disc=discount,price=item["harga_satuan"],                    access_token=access_token,note="Order web")
+                    if not success:
+                        print(
+                            msg := f"Stok produk {item['name']} tidak mencukupi. Struk dibatalkan"
+                        )
+                        return False, msg
+                except requests.exceptions.HTTPError:
                     print(
-                        msg := f"Stok produk {item['name']} tidak mencukupi. Struk dibatalkan"
+                        "Ada kesalahan HTTP saat memasukkan produk ke order. Struk di-voidkan."
                     )
-                    return False, msg
-            except requests.exceptions.HTTPError:
-                print(
-                    "Ada kesalahan HTTP saat memasukkan produk ke order. Struk di-voidkan."
-                )
-                return (
-                    False,
-                    "Ada kesalahan HTTP saat memasukkan produk ke order. Struk di-voidkan.",
-                )
-            except Exception as e:
-                print(f"Ada kesalahan saat memasukkan produk ke order. Error: {e}")
-                return (
-                    False,
-                    f"Ada kesalahan saat memasukkan produk ke order. Error: {e}",
-                )
+                    return (
+                        False,
+                        "Ada kesalahan HTTP saat memasukkan produk ke order. Struk di-voidkan.",
+                    )
+                except Exception as e:
+                    print(f"Ada kesalahan saat memasukkan produk ke order. Error: {e}")
+                    return (
+                        False,
+                        f"Ada kesalahan saat memasukkan produk ke order. Error: {e}",
+                    )
+        else : 
+            print("Move combo to order...")
+            for combo in cart : 
+                combo_id = combo["combo_id"]
+                qty = combo["qty"]
+                combo_items = combo["items"]
+                try : 
+                    success,_ = add_combo_to_order(
+                        order_id=str(order_id),
+                        combo_id=str(combo_id),
+                        quantity=qty,
+                        combo_items=combo_items,
+                        access_token=access_token
+                    )
+                    if not success : 
+                        print(
+                            msg := f"Stok produk {combo['name']} tidak mencukupi. Struk dibatalkan"
+                        )
+                        return False, msg
+                except Exception as e: 
+                    print(msg:=f"Ada kesalahan saat memasukkan combo {combo['name']} [{combo['combo_id']}]")
+                    return False,msg
         print(
             "Semua item berhasil dipindahkan ke order dan diskon paket telah diperbarui."
         )
@@ -117,6 +145,165 @@ class StrukMaker:
             agg_by_prodvar[pvar]["harga_satuan"] += float(item["harga_satuan"])
         aggregated_by_prodvar = list(agg_by_prodvar.values())
         return aggregated_by_prodvar
+        
+    def _aggregate_cart_by_combo(self, cart: list, db: Session) -> list:
+        # ambil semua olsera_combo_id unik dari cart
+        olsera_combo_ids = list({item["combo_id"] for item in cart if item.get("combo_id")})
+        print(f"olsera_combo_ids ditemukan di cart: {olsera_combo_ids}")
+
+        if not olsera_combo_ids:
+            return []
+
+        # ambil requirement setiap combo dari tabel pivot combo_product JOIN product
+        rows = db.execute(
+            select(
+                combo_product.c.combo_id,
+                combo_product.c.olsera_combo_id,
+                combo_product.c.product_id,
+                combo_product.c.qty,
+                combo_product.c.item_id,
+                combo_product.c.olsera_prod_id,
+                Product.name,
+                Product.has_variant,
+                Product.variants,
+            )
+            .join(Product, Product.id == combo_product.c.product_id)
+            .where(combo_product.c.olsera_combo_id.in_(olsera_combo_ids))
+        ).all()
+
+        print(f"Debug ROWS: {rows}")
+
+        combo_reqs = {}
+        combo_id_map = {}
+        for combo_id, olsera_combo_id, product_id, req_qty, item_id, olsera_prod_id, prod_name, has_variant, variants in rows:
+            combo_reqs.setdefault(olsera_combo_id, {})[product_id] = {
+                "req_qty": req_qty,
+                "olsera_prod_id": olsera_prod_id,
+                "item_id": item_id,
+                "name": prod_name,
+                "variants": variants,
+            }
+            combo_id_map[olsera_combo_id] = combo_id
+
+        # ambil detail combo
+        combos = db.query(Combo).filter(Combo.id.in_(combo_id_map.values())).all()
+        combo_map = {c.id: c for c in combos}
+
+        result = []
+        for olsera_combo_id, reqs in combo_reqs.items():
+            combo_cart_items = [i for i in cart if i.get("combo_id") == olsera_combo_id]
+
+            # hitung total qty per product_id di cart
+            cart_qty_map = defaultdict(int)
+            for i in combo_cart_items:
+                cart_qty_map[i["product_id"]] += i["qty"]
+
+            # berapa kali paket bisa dibentuk?
+            combo_qty_candidates = []
+            for pid, meta in reqs.items():
+                have_qty = cart_qty_map.get(pid, 0)
+                combo_qty_candidates.append(have_qty // meta["req_qty"])
+            combo_qty = min(combo_qty_candidates) if combo_qty_candidates else 0
+
+            combo_id = combo_id_map[olsera_combo_id]
+            result.append({
+                "combo_id": olsera_combo_id,
+                "name": combo_map[combo_id].name if combo_id in combo_map else f"Combo-{olsera_combo_id}",
+                "qty": combo_qty,
+                "items": [
+                    {
+                        "id": meta["item_id"],
+                        "product_id": meta["olsera_prod_id"],
+                        "name": meta["name"],
+                        "product_variant_id": next((i.get("variant_id") for i in combo_cart_items if i["product_id"] == pid), None),
+                        "qty": meta["req_qty"] * combo_qty,
+                    }
+                    for pid, meta in reqs.items()
+                ]
+            })
+
+        print("Hasil akhir agregasi:", result)
+        return result
+
+    def aggregate_cart_by_combo(self, cart: list, db: Session) -> list:
+        # ambil semua olsera_combo_id unik dari cart
+        olsera_combo_ids = list({item["combo_id"] for item in cart if item.get("combo_id")})
+        print(f"olsera_combo_ids ditemukan di cart: {olsera_combo_ids}")
+
+        if not olsera_combo_ids:
+            return []
+
+        # ambil requirement setiap combo dari tabel pivot combo_product JOIN product
+        rows = db.execute(
+            select(
+                combo_product.c.combo_id,
+                combo_product.c.olsera_combo_id,
+                combo_product.c.product_id,
+                combo_product.c.qty,
+                combo_product.c.item_id,
+                combo_product.c.olsera_prod_id,
+                Product.name,
+                Product.has_variant,
+                Product.variants,
+            )
+            .join(Product, Product.id == combo_product.c.product_id)
+            .where(combo_product.c.olsera_combo_id.in_(olsera_combo_ids))
+        ).all()
+
+        print(f"Debug ROWS: {rows}")
+
+        combo_reqs = {}
+        combo_id_map = {}
+        for combo_id, olsera_combo_id, product_id, req_qty, item_id, olsera_prod_id, prod_name, has_variant, variants in rows:
+            combo_reqs.setdefault(olsera_combo_id, {})[olsera_prod_id] = {   # 🔑 pakai olsera_prod_id
+                "req_qty": req_qty,
+                "item_id": item_id,
+                "name": prod_name,
+                "variants": variants,
+            }
+            combo_id_map[olsera_combo_id] = combo_id
+
+        # ambil detail combo
+        combos = db.query(Combo).filter(Combo.id.in_(combo_id_map.values())).all()
+        combo_map = {c.id: c for c in combos}
+
+        result = []
+        for olsera_combo_id, reqs in combo_reqs.items():
+            combo_cart_items = [i for i in cart if i.get("combo_id") == olsera_combo_id]
+
+            # hitung total qty per olsera_prod_id di cart
+            cart_qty_map = defaultdict(int)
+            for i in combo_cart_items:
+                cart_qty_map[i["product_id"]] += i["qty"]   # 🔑 pakai "id" dari cart (olsera_prod_id)
+
+            # berapa kali paket bisa dibentuk?
+            combo_qty_candidates = []
+            for olsera_pid, meta in reqs.items():
+                have_qty = cart_qty_map.get(olsera_pid, 0)
+                combo_qty_candidates.append(have_qty // meta["req_qty"])
+            combo_qty = min(combo_qty_candidates) if combo_qty_candidates else 0
+
+            combo_id = combo_id_map[olsera_combo_id]
+            result.append({
+                "combo_id": olsera_combo_id,
+                "name": combo_map[combo_id].name if combo_id in combo_map else f"Combo-{olsera_combo_id}",
+                "qty": combo_qty,
+                "items": [
+                    {
+                        "id": meta["item_id"],
+                        "product_id": olsera_pid,   # 🔑 pakai olsera_prod_id
+                        "name": meta["name"],
+                        "product_variant_id": next((i.get("variant_id") for i in combo_cart_items if i["product_id"] == olsera_pid), None),  # 🔑 match ke cart.id
+                        "qty": meta["req_qty"] * combo_qty,
+                    }
+                    for olsera_pid, meta in reqs.items()
+                ]
+            })
+
+        print("Hasil akhir agregasi:", result)
+        return result
+
+
 
     def count_driver_available(self) -> int:
         response = requests.get(URL_DRIVER)
@@ -200,6 +387,25 @@ class StrukMaker:
                     }
                 )
                 # return None, None, f"Gagal membuat order: {e}"
+            print("Memproses combo...")
+
+            combo_cart = [combo for combo in raw_cart["cells"] if combo.get("prodvar_id") and combo.get("combo_id")]
+            item_cart = [item for item in raw_cart["cells"] if item not in combo_cart]
+            
+            result = self.process_combo(
+                raw_cart=raw_cart,
+                order_id=order_id,
+                db=session,
+                access_token=access_token
+            )
+            if not result["success"] : 
+                return JSONResponse(
+                    content={
+                        "success" : False,
+                        "message" : result["message"],
+                        "data" : {}
+                    }
+                )
 
             
             print("Mulai memproses item")
@@ -209,6 +415,7 @@ class StrukMaker:
                 return JSONResponse(
                     content={"success": False, "message": result["message"], "data": {}}
                 )
+            
 
             payment_modes = list_payment_modes(order_id, access_token)
 
@@ -328,7 +535,7 @@ class StrukMaker:
             )
 
     def process_items(self, raw_cart, order_id, access_token) -> dict:
-        carts = raw_cart["cells"]
+        carts = [cart for cart in raw_cart["cells"] if not cart.get("combo_id")]
         main_product = []
         additional_product = []
         for cart in carts:
@@ -481,6 +688,64 @@ class StrukMaker:
                 }
 
         return {"success": True, "message": "Berhasil proses per item dari carts"}
+    
+    def process_combo(self,raw_cart,order_id,db: Session,access_token) -> dict : 
+        carts = [cart for cart in raw_cart["cells"] if cart.get("combo_id")]
+        main_combo = []
+        additional_combo = []
+
+        for cart in carts : 
+            if cart.get("prodvar_id") : 
+                main_combo.append(
+                    {
+                        "product_id": cart["id"],
+                        "combo_id" : cart["combo_id"],
+                        "prodvar_id": cart["prodvar_id"],
+                        "name": cart["name"],
+                        "harga_satuan" : cart["harga_satuan"],
+                        "qty": cart["qty"],
+                        "product_type_id": cart["product_type_id"],
+                        "disc": float(cart["disc"] or 0),
+                    }
+                )
+            else : 
+                additional_combo.append(
+                    {
+                        "product_id": cart["id"],
+                        "combo_id" : cart["combo_id"],
+                        "name": cart["name"],
+                        "qty": cart["qty"],
+                        "harga_satuan" : cart.get("harga_satuan",0.0),
+                        "product_type_id": cart["product_type_id"],
+                        "disc": float(cart.get("disc") or 0),
+                    }
+                )
+            
+        print("Mulai agregasi combo...")
+        aggregated_combos = self.aggregate_cart_by_combo(main_combo,db)
+        print("Selesai AGREGASI COMBO...")
+        print(f"Hasil aggregasi : {json.dumps(aggregated_combos,indent=2)}")
+        print("Move cart to order...")
+        success,msg = self.move_cart_to_order(
+            aggregated_combos,
+            order_id,
+            access_token,
+            True
+        )
+        if not success : 
+            update_status(order_id,"X",access_token)
+            return { 
+                "success" : False,
+                "message" : msg
+            }
+        
+        return { 
+            "success" : True,
+            "message" : f"Berhasil Proses per combo dari carts"
+        }
+
+
+
 
     def process_qris_payment(self, raw_cart):
         access_token = get_token_by_outlet_id(raw_cart["outlet_id"])

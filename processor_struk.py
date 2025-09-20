@@ -7,7 +7,9 @@ from modules.crud_utility import get_token_by_outlet_id
 from modules.maps_utility import estimasi_tiba
 from datetime import datetime, timedelta
 from struk_forwarder import forward_struk
-
+from modules.sqlalchemy_setup import get_db_session
+from sqlalchemy import select
+from modules.models_sqlalchemy import Combo,Product,combo_product
 app = FastAPI()
 
 
@@ -124,6 +126,40 @@ def estimation_time(payload: PayloadEstimation):
         "estimasi_tiba": max_luncur,
     }
 
+@app.get("/tes")
+def tes():
+    with get_db_session() as db:
+        rows = db.execute(
+            select(
+                Combo.id,
+                Combo.name,
+                Combo.price,
+                Product.id,
+                Product.name,
+                combo_product.c.qty,
+                combo_product.c.item_id
+            )
+            .join(combo_product, Combo.id == combo_product.c.combo_id)
+            .join(Product, Product.id == combo_product.c.product_id)
+        ).all()
+
+        result = {}
+        for combo_id, combo_name, combo_price, product_id, product_name, qty, item_id in rows:
+            if combo_id not in result:
+                result[combo_id] = {
+                    "combo_id": combo_id,
+                    "name": combo_name,
+                    "price": combo_price,
+                    "items": []
+                }
+            result[combo_id]["items"].append({
+                "product_id": product_id,
+                "name": product_name,
+                "qty": qty,
+                "item_id": item_id
+            })
+
+        return list(result.values())
 
 if __name__ == "__main__":
     import uvicorn

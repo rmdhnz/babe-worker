@@ -26,10 +26,12 @@ def job_daily():
     try:
         print("=== [FULL DB SYNC - DAILY] ===")
         # all_outlets = get_all_outlets().json()
-        outlet_id = 1
-        print(f"Syncing outlet: {outlet_id}")
-        sync_products_all(outlet_id)
-        sync_combos(outlet_id)
+        outlet_id = [1,5]
+        for id in outlet_id : 
+            outlet  = get_outlet_name(id)
+            print(f"Syncing outlet: {outlet}")
+            sync_products_all(id)
+            sync_combos(id)
 
     except Exception as e:
         print(f"[ERROR][DAILY SYNC] {e}")
