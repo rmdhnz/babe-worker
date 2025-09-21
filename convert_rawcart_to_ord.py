@@ -396,7 +396,7 @@ class StrukMaker:
                     "message" : msg,
                 })
 
-            combo_cart = [combo for combo in raw_cart["cells"] if (combo.get("prodvar_id") and combo.get("combo_id"))]
+            combo_cart = [combo for combo in raw_cart["cells"] if combo.get("combo_id")]
             item_cart = [item for item in raw_cart["cells"] if item not in combo_cart]
 
             if combo_cart :   
@@ -747,6 +747,44 @@ class StrukMaker:
                 "success" : False,
                 "message" : msg
             }
+        
+        for add_combo in additional_combo : 
+            try : 
+                combo_detail = fetch_product_combo_details(
+                    add_combo["combo_id"],
+                    access_token
+                )
+                if not combo_detail : 
+                    update_status(order_id,"X",access_token)
+                    print(msg:=f"Combo {add_combo['name']} tidak ditemukan! Struk dibatalkan!")
+                    return { 
+                        "success" : False,
+                        "message" : msg
+                    }
+                combo_items = combo_detail["data"]["items"]["data"]
+                for item in combo_items : 
+                    success, data = add_prod_to_order(
+                        order_id=order_id,
+                        product_id=item.get("product_id"),
+                        quantity=item.get("qty",1),
+                        access_token=access_token,
+                    )
+                    if not success : 
+                        update_status(order_id,"X",access_token)
+                        print(
+                            msg := f"Stock Produk {item} tidak mencukupi. Struk dibatalkan"
+                        )
+                        return { 
+                            "success" : False,
+                            "message" : msg
+                        }
+            except Exception as e: 
+                update_status(order_id,"X",access_token)
+                print(msg:=f"Gagal mengambil detail combo {add_combo['name']}: {e}. Struk dibatalkan!")
+                return { 
+                    "success" : False,
+                    "message" : msg,
+                }
         
         return { 
             "success" : True,
