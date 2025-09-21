@@ -53,9 +53,9 @@ class StrukMaker:
         Pindahkan semua item dalam cart ke order dengan ID order_id.
         carts_by_product_id: dict {product_id: Cart}
         """
-        if not cart:
-            print("Cart kosong, tidak ada item untuk dipindahkan. Struk di batalkan")
-            return False, "Cart kosong, tidak ada item untuk dipindahkan."
+        # if not cart:
+        #     print("Cart kosong, tidak ada item untuk dipindahkan. Struk di batalkan")
+        #     return False, "Cart kosong, tidak ada item untuk dipindahkan."
         
         if not type_combo : 
             print("Move items to order...")
@@ -345,7 +345,7 @@ class StrukMaker:
             today_str = datetime.now().strftime("%Y-%m-%d")
 
             try:
-                print(f"Membuat order atas nama {user.name}...")
+                print(f"Membuat order atas nama {raw_cart['name']}...")
                 order_id, order_no = create_order(
                     order_date=today_str,
                     customer_id=customer[0] if customer else None,
@@ -388,34 +388,43 @@ class StrukMaker:
                 )
                 # return None, None, f"Gagal membuat order: {e}"
             print("Memproses combo...")
+            if not raw_cart["cells"] : 
+                print(msg:="Cart kosong, tidak ada item untuk dipindahkan. Struk di batalkan")
+                update_status(order_id=order_id,status="X",access_token=access_token)
+                return JSONResponse(content={
+                    "success" : False,
+                    "message" : msg,
+                })
 
-            combo_cart = [combo for combo in raw_cart["cells"] if combo.get("prodvar_id") and combo.get("combo_id")]
+            combo_cart = [combo for combo in raw_cart["cells"] if (combo.get("prodvar_id") and combo.get("combo_id"))]
             item_cart = [item for item in raw_cart["cells"] if item not in combo_cart]
-            
-            result = self.process_combo(
-                raw_cart=raw_cart,
-                order_id=order_id,
-                db=session,
-                access_token=access_token
-            )
-            if not result["success"] : 
-                return JSONResponse(
-                    content={
-                        "success" : False,
-                        "message" : result["message"],
-                        "data" : {}
-                    }
-                )
 
-            
-            print("Mulai memproses item")
-
-            result = self.process_items(raw_cart, order_id, access_token)
-            if not result["success"]:
-                return JSONResponse(
-                    content={"success": False, "message": result["message"], "data": {}}
+            if combo_cart :   
+                result = self.process_combo(
+                    raw_cart=raw_cart,
+                    order_id=order_id,
+                    db=session,
+                    access_token=access_token
                 )
+                if not result["success"] : 
+                    return JSONResponse(
+                        content={
+                            "success" : False,
+                            "message" : result["message"],
+                            "data" : {}
+                        }
+                    )
             
+            if item_cart :
+                print("Mulai memproses item")
+
+
+                result = self.process_items(item_cart, order_id, access_token)
+                if not result["success"]:
+                    return JSONResponse(
+                        content={"success": False, "message": result["message"], "data": {}}
+                    )
+                
 
             payment_modes = list_payment_modes(order_id, access_token)
 
@@ -535,7 +544,7 @@ class StrukMaker:
             )
 
     def process_items(self, raw_cart, order_id, access_token) -> dict:
-        carts = [cart for cart in raw_cart["cells"] if not cart.get("combo_id")]
+        carts = [cart for cart in raw_cart if not cart.get("combo_id")]
         main_product = []
         additional_product = []
         for cart in carts:
