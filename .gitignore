@@ -7,3 +7,5 @@ data/
 model_lama/
 *.txt
 tes*
+*.js
+log/

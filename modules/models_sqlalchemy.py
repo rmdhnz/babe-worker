@@ -25,10 +25,17 @@ combo_product = Table(
     Base.metadata,
     Column("combo_id", ForeignKey("combos.id"), primary_key=True),
     Column("product_id", ForeignKey("products.id"), primary_key=True),
+    Column("item_id",Integer,nullable=True),
+    Column("olsera_prod_id",BigInteger,nullable=True),
+    Column("olsera_combo_id",BigInteger,nullable=True),
     Column("qty", Integer, nullable=False),
     Column("created_at", DateTime, default=datetime.utcnow),
     Column("updated_at", DateTime, default=datetime.utcnow, onupdate=datetime.utcnow),
 )
+
+
+
+
 
 outlet_condition = Table(
     "outlet_condition",
