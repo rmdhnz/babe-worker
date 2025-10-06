@@ -62,7 +62,7 @@ def forward_struk(payload: dict):
         .json()
         .get("data", None)
     )
-    print(f"Group ids : {json.dumps(group_ids,indent=2)}")
+    # print(f"Group ids : {json.dumps(group_ids,indent=2)}")
 
     # Buat estimasi tiba
     max_luncur_str = estimasi_tiba(
@@ -96,6 +96,7 @@ def forward_struk(payload: dict):
     )
 
     invoice_lines = [
+        f"*ORDERAN WEB BABE* (JANGAN DI PROSES, INI UJI COBA)",
         f"Nama: {payload.get('cust_name', 'Unknown')}",
         f"Nomor Telepon: {payload.get('phone_number', 'Tidak diketahui')}",
         f"Alamat: {payload.get('address', 'Tidak diketahui')}",
@@ -114,6 +115,7 @@ def forward_struk(payload: dict):
         f"Jenis Pengiriman: {payload.get('jenis_pengiriman', '')}",
         f"*NOTES: {payload.get('notes') or 'Tidak ada catatan tambahan.'}*",
     ]
+    print(f"Invoice lines: {json.dumps(invoice_lines, indent=2)}")
 
     invoice = "\n".join([line for line in invoice_lines if line is not None])
 

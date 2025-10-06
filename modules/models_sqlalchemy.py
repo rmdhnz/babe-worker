@@ -172,6 +172,7 @@ class User(Base):
     remember_token = Column(String(100), nullable=True)
     created_at = Column(TIMESTAMP, server_default=func.now())
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+    qris_used = Column(Integer, nullable=False, default=0)
 
 
 class Condition(Base):

@@ -519,9 +519,8 @@ def estimasi_tiba(jarak_km: float, tipe: str, waktu_mulai: datetime) -> datetime
         instan = instan_malam
         express = express_malam
     else:
-        raise ValueError(
-            "Jam operasional hanya 11:00-19:00 (siang) atau 20:00-04:00 (malam)"
-        )
+        instan = instan_siang
+        express = express_siang
 
     # Hitung waktu tambahan
     if tipe == "FD":
