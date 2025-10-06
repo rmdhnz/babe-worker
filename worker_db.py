@@ -26,7 +26,7 @@ def job_daily():
     try:
         print("=== [FULL DB SYNC - DAILY] ===")
         # all_outlets = get_all_outlets().json()
-        outlet_id = [1,5]
+        outlet_id = [1,3]
         for id in outlet_id : 
             outlet  = get_outlet_name(id)
             print(f"Syncing outlet: {outlet}")
