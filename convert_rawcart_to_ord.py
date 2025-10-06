@@ -15,6 +15,7 @@ from sqlalchemy import select
 
 load_dotenv()
 URL_DRIVER = os.getenv("URL_LIST_DRIVER")
+APP_MODE = os.getenv("APP_ENV","local")
 OLSERA_STRUK = os.getenv(
     "STRUK_OLSERA",
     "https://invoice.olsera.co.id/pos-receipt?lang=id&store=kulkasbabe&order_no=",
@@ -59,7 +60,6 @@ class StrukMaker:
         
         if not type_combo : 
             print("Move items to order...")
-
 
             # Tambahkan produk ke order
             for idx,item in enumerate(cart):
@@ -228,7 +228,8 @@ class StrukMaker:
     def aggregate_cart_by_combo(self, cart: list, db: Session) -> list:
         # ambil semua olsera_combo_id unik dari cart
         olsera_combo_ids = list({item["combo_id"] for item in cart if item.get("combo_id")})
-        print(f"olsera_combo_ids ditemukan di cart: {olsera_combo_ids}")
+        if APP_MODE != "production" :
+            print(f"olsera_combo_ids ditemukan di cart: {olsera_combo_ids}")
 
         if not olsera_combo_ids:
             return []
@@ -250,7 +251,8 @@ class StrukMaker:
             .where(combo_product.c.olsera_combo_id.in_(olsera_combo_ids))
         ).all()
 
-        print(f"Debug ROWS: {rows}")
+        if APP_MODE != "production" :
+            print(f"Debug ROWS: {rows}")
 
         combo_reqs = {}
         combo_id_map = {}
@@ -300,7 +302,7 @@ class StrukMaker:
                 ]
             })
 
-        print("Hasil akhir agregasi:", result)
+        print("Berhasil packing combo kembali!")
         return result
 
 
@@ -315,7 +317,8 @@ class StrukMaker:
             return -1
 
     def handle_order(self, raw_cart):
-        print(f"Memproses : {json.dumps(raw_cart['cells'],indent=2)}")
+        if APP_MODE != "production" :
+            print(f"Memproses : {json.dumps(raw_cart['cells'],indent=2)}")
         if raw_cart["express_delivery"]:
             total_driver = self.count_driver_available()
             if total_driver < 20:
@@ -333,7 +336,15 @@ class StrukMaker:
                 )
         access_token = get_token_by_outlet_id(raw_cart["outlet_id"])
         with get_db_session() as session:
-            # user = session.query(User).filter(User.id == raw_cart["user_id"]).first()
+            user = session.query(User).filter(User.id == raw_cart["user_id"]).first()
+            if raw_cart["payment_type"] == "Cash" : 
+                if user.qris_used < 2 : 
+                    print(msg:=f"Minimal Penggunaan QRIS 2 kali sebelum bisa melakukan pembayaran secara Cash")
+                    return JSONResponse(content={
+                        "success" : False,
+                        "message" : msg,
+                        "data" : {}
+                    })
 
             # 1. Create order
             customer = cek_kastamer(
@@ -387,7 +398,6 @@ class StrukMaker:
                     }
                 )
                 # return None, None, f"Gagal membuat order: {e}"
-            print("Memproses combo...")
             if not raw_cart["cells"] : 
                 print(msg:="Cart kosong, tidak ada item untuk dipindahkan. Struk di batalkan")
                 update_status(order_id=order_id,status="X",access_token=access_token)
@@ -416,9 +426,6 @@ class StrukMaker:
                     )
             
             if item_cart :
-                print("Mulai memproses item")
-
-
                 result = self.process_items(item_cart, order_id, access_token)
                 if not result["success"]:
                     return JSONResponse(
@@ -572,11 +579,9 @@ class StrukMaker:
                     }
                 )
         
-        print("Mulai agregasi produk...")
 
         aggregated_carts = self.aggregate_cart_by_prodvar(main_product)
         print("SELESAI AGREGASI...")
-        print("Move cart to order..")
         success, msg = self.move_cart_to_order(
             aggregated_carts, order_id, access_token=access_token
         )
@@ -730,11 +735,11 @@ class StrukMaker:
                     }
                 )
             
-        print("Mulai agregasi combo...")
+        # print("Mulai agregasi combo...")
         aggregated_combos = self.aggregate_cart_by_combo(main_combo,db)
-        print("Selesai AGREGASI COMBO...")
-        print(f"Hasil aggregasi : {json.dumps(aggregated_combos,indent=2)}")
-        print("Move cart to order...")
+        # print("Selesai AGREGASI COMBO...")
+        # print(f"Hasil aggregasi : {json.dumps(aggregated_combos,indent=2)}")
+        # print("Move cart to order...")
         success,msg = self.move_cart_to_order(
             aggregated_combos,
             order_id,
