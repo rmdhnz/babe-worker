@@ -91,8 +91,6 @@ def forward_struk(payload: dict):
 
     result = (
         f"Jarak: {distance_str} km "
-        f"(*{payload.get('kelurahan', 'Unk. Kelurahan')}, "
-        f"{payload.get('kecamatan', '').replace('Kecamatan ', '').replace('Kec. ', '').replace('kecamatan', '').replace('kec.', '')}*)"
     )
 
     invoice_lines = [
