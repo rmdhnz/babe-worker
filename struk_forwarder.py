@@ -91,12 +91,10 @@ def forward_struk(payload: dict):
 
     result = (
         f"Jarak: {distance_str} km "
-        f"(*{payload.get('kelurahan', 'Unk. Kelurahan')}, "
-        f"{payload.get('kecamatan', '').replace('Kecamatan ', '').replace('Kec. ', '').replace('kecamatan', '').replace('kec.', '')}*)"
     )
 
     invoice_lines = [
-        f"*ORDERAN WEB BABE* (JANGAN DI PROSES, INI UJI COBA)",
+        f"*ORDERAN WEB BABE*",
         f"Nama: {payload.get('cust_name', 'Unknown')}",
         f"Nomor Telepon: {payload.get('phone_number', 'Tidak diketahui')}",
         f"Alamat: {payload.get('address', 'Tidak diketahui')}",
@@ -108,7 +106,7 @@ def forward_struk(payload: dict):
         "",
         "Makasih yaa Cah udah Jajan di Babe!",
         f"Total Jajan: {format_idr(payload.get('total_amount',0))} (*{payload.get('payment_type', '').upper()}*)",
-        f"Cek Jajanmu di sini: {payload.get('struk_url', '')}\n"
+        f"Cek Jajanmu di sini: {payload.get('struk_url', '')}\n",
         f"Jam Order: *{datetime.now().strftime('%H:%M')}*",
         "",
         "",

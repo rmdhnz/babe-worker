@@ -321,7 +321,7 @@ class StrukMaker:
             print(f"Memproses : {json.dumps(raw_cart['cells'],indent=2)}")
         if raw_cart["express_delivery"]:
             total_driver = self.count_driver_available()
-            if total_driver < 20:
+            if total_driver < 2:
                 print(
                     "Jumlah driver tidak memenuhi untuk express. Jumlah driver saat ini ",
                     total_driver,
@@ -406,7 +406,7 @@ class StrukMaker:
                     "message" : msg,
                 })
 
-            combo_cart = [combo for combo in raw_cart["cells"] if combo.get("combo_id")]
+            combo_cart = [combo for combo in raw_cart["cells"] if combo.get('product_type_id') == 3]
             item_cart = [item for item in raw_cart["cells"] if item not in combo_cart]
 
             if combo_cart :   
@@ -477,12 +477,13 @@ class StrukMaker:
             tambahan_waktu = sum((cond.nilai for cond in outlet.conditions), 0)
             delivery = {"1": "FD", "2": "I", "3": "EX"}
             location = parse_address(raw_cart["formatted_address"])
+            print("Lokasi : ",raw_cart['formatted_address'])
             payload_request = {
                 "order_id": order_id,
                 "order_no": order_no,
                 "cust_name": raw_cart["name"],
                 "phone_number": raw_cart["telepon"],
-                "distance": raw_cart.get("jarak", 0.0),
+                "distance": raw_cart.get("jarak"),
                 "address": raw_cart.get("address", "Tidak diketahui"),
                 "kecamatan": location["kecamatan"],
                 "kelurahan": location["kelurahan"],
