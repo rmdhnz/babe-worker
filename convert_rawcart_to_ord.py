@@ -434,6 +434,7 @@ class StrukMaker:
                 
 
             payment_modes = list_payment_modes(order_id, access_token)
+            print(json.dumps(payment_modes,indent=2))
 
             order_details = fetch_order_details(order_id, access_token)
             selected_mode = next(
@@ -444,6 +445,7 @@ class StrukMaker:
                 ),
                 None,
             )
+            print("Selected :",selected_mode)
             if not selected_mode:
                 update_status(order_id=order_id, status="X", access_token=access_token)
                 # return None, None, "Metode Pembayaran tidak dikenali. Struk divoidkan"
@@ -871,7 +873,7 @@ class StrukMaker:
                 "kecamatan": location["kecamatan"],
                 "kelurahan": location["kelurahan"],
                 "total_amount": total_amount,
-                "payment_type": raw_cart.get("payment_type", "unknown"),
+                "payment_type": raw_cart.get("payment_type", "QRIS WEB"),
                 "jenis_pengiriman": delivery[
                     str(raw_cart.get("delivery_type_id", "1"))
                 ],
