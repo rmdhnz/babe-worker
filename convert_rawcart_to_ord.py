@@ -337,14 +337,14 @@ class StrukMaker:
         access_token = get_token_by_outlet_id(raw_cart["outlet_id"])
         with get_db_session() as session:
             user = session.query(User).filter(User.id == raw_cart["user_id"]).first()
-            #if raw_cart["payment_type"] == "Cash" : 
-             #    if user.qris_used < 2 : 
-              #       print(msg:=f"Minimal Penggunaan QRIS 2 kali sebelum bisa melakukan pembayaran secara Cash")
-               #      return JSONResponse(content={
-                #         "success" : False,
-                 #        "message" : msg,
-                  #       "data" : {}
-                   #  })
+            if raw_cart["payment_type"] == "Cash" : 
+                if user.qris_used < 2 : 
+                    print(msg:=f"Minimal Penggunaan QRIS 2 kali sebelum bisa melakukan pembayaran secara Cash")
+                    return JSONResponse(content={
+                        "success" : False,
+                        "message" : msg,
+                        "data" : {}
+                    })
 
             # 1. Create order
             customer = cek_kastamer(

@@ -94,7 +94,7 @@ def forward_struk(payload: dict):
     )
 
     invoice_lines = [
-        f"*ORDERAN WEB BABE*",
+        f"*ORDERAN WEB BABE* JANGAN DI PROSES DULU",
         f"Nama: {payload.get('cust_name', 'Unknown')}",
         f"Nomor Telepon: {payload.get('phone_number', 'Tidak diketahui')}",
         f"Alamat: {payload.get('address', 'Tidak diketahui')}",
