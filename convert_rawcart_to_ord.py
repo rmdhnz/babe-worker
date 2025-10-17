@@ -801,6 +801,9 @@ class StrukMaker:
 
 
     def process_qris_payment(self, raw_cart):
+        update_status(
+            order_id=raw_cart["order_id"], status="Z", access_token=access_token
+        )
         access_token = get_token_by_outlet_id(raw_cart["outlet_id"])
         result = self.process_items(
             raw_cart=raw_cart, order_id=raw_cart["order_id"], access_token=access_token
@@ -847,9 +850,7 @@ class StrukMaker:
             payment_seq="0",
             payment_currency_id="IDR",
         )
-        update_status(
-            order_id=raw_cart["order_id"], status="Z", access_token=access_token
-        )
+
         with get_db_session() as session:
             outlet = (
                 session.query(Outlet)
@@ -906,6 +907,7 @@ class StrukMaker:
             # forward_struk(payload_request)
             threading.Thread(target=forward_struk, args=(payload_request,)).start()
             print("Struk berhasil diteruskan ke Grup")
+
             return JSONResponse(
                 content={
                     "success": True,
