@@ -420,21 +420,30 @@ def add_prod_with_update_detail(order_id:str,product_id:str,quantity:int,disc:in
 
 
 def add_combo_to_order(order_id:str, combo_id:str,quantity:int, combo_items:list,access_token) : 
+    import json
     url = "https://api-open.olsera.co.id/api/open-api/v1/en/order/openorder/additemcombo"
 
     params = {
         "order_id" : order_id,
         "item_combo_id" : combo_id,
         "item_combo_qty" : quantity,
-        "item_combo_items" : combo_items,
     }
+    # print("COMBO ITEMS: ",json.dumps(combo_items,indent=2))
+
+    for i,item in enumerate(combo_items)  :
+        params[f"item_combo_items[{i}][id]"] = str(item["id"])
+        params[f"item_combo_items[{i}][product_id]"] = str(item["product_id"])
+        if item.get("product_variant_id"):
+            # print("Menambahkan product_variant_id untuk item combo:", item)
+            params[f"item_combo_items[{i}][product_variant_id]"] = str(item["product_variant_id"])
+    
+    # print("PARAMS ADD COMBO TO ORDER: ",json.dumps(params,indent=2))
 
     headers = {
         "Authorization" : f"Bearer {access_token}",
-        "Content-Type" : "application/json"
     }
     try : 
-        response = requests.post(url,json=params,headers=headers)
+        response = requests.post(url,data=params,headers=headers)
         response.raise_for_status()
         return True, response.json()
     except requests.exceptions.HTTPError as http_err : 

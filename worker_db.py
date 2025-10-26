@@ -12,12 +12,13 @@ import time
 class SyncProductAndCombo:
     def sync_now(self, req):
         try:
-            outlet = get_outlet_name(req["outlet_id"])
+            outlet_id = 1
+            outlet = get_outlet_name(outlet_id=outlet_id)
             print(f"=== [FULL DB SYNC [{outlet}] by {req['name']}===")
             outlet_id = req["outlet_id"]
             sync_products_all(outlet_id)
             sync_combos(outlet_id)
-            # sync_product_variants(outlet_id)
+            sync_product_variants(outlet_id)
         except Exception as e:
             print(f"[ERROR][DAILY SYNC] {e}")
 
@@ -26,12 +27,13 @@ def job_daily():
     try:
         print("=== [FULL DB SYNC - DAILY] ===")
         # all_outlets = get_all_outlets().json()
-        outlet_id = [1,3]
+        outlet_id = [1]
         for id in outlet_id : 
             outlet  = get_outlet_name(id)
             print(f"Syncing outlet: {outlet}")
             sync_products_all(id)
             sync_combos(id)
+            
 
     except Exception as e:
         print(f"[ERROR][DAILY SYNC] {e}")

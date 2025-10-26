@@ -273,6 +273,8 @@ class StrukMaker:
         for olsera_combo_id, reqs in combo_reqs.items():
             combo_cart_items = [i for i in cart if i.get("combo_id") == olsera_combo_id]
 
+            print("combo_cart_items: ",json.dumps(combo_cart_items,indent=2))
+
             # hitung total qty per olsera_prod_id di cart
             cart_qty_map = defaultdict(int)
             for i in combo_cart_items:
@@ -376,18 +378,6 @@ class StrukMaker:
                 with open(log_file,"a",encoding="utf-8") as f : 
                     f.write(f"{order_no}|{order_id}|{now_str}\n")
 
-                if raw_cart["payment_type"] == "QRIS":
-                    return JSONResponse(
-                        content={
-                            "success": True,
-                            "message": "Order berhasil dibuat untuk pembayaran QRIS",
-                            "data": {
-                                "order_id": order_id,
-                                "order_no": order_no,
-                            },
-                        }
-                    )
-
             except Exception as e:
                 print(f"Gagal membuat order: {e}")
                 return JSONResponse(
@@ -406,7 +396,7 @@ class StrukMaker:
                     "message" : msg,
                 })
 
-            combo_cart = [combo for combo in raw_cart["cells"] if combo.get('product_type_id') == 3]
+            combo_cart = [combo for combo in raw_cart["cells"] if combo.get("combo_id")]
             item_cart = [item for item in raw_cart["cells"] if item not in combo_cart]
 
             if combo_cart :   
@@ -445,7 +435,6 @@ class StrukMaker:
                 ),
                 None,
             )
-            print("Selected :",selected_mode)
             if not selected_mode:
                 update_status(order_id=order_id, status="X", access_token=access_token)
                 # return None, None, "Metode Pembayaran tidak dikenali. Struk divoidkan"
@@ -479,13 +468,20 @@ class StrukMaker:
             tambahan_waktu = sum((cond.nilai for cond in outlet.conditions), 0)
             delivery = {"1": "FD", "2": "I", "3": "EX"}
             location = parse_address(raw_cart["formatted_address"])
-            print("Lokasi : ",raw_cart['formatted_address'])
+            conditions = session.query(Outlet).options(joinedload(Outlet.conditions)).filter(Outlet.id == raw_cart["outlet_id"]).first().conditions
+            condition_names = ", ".join([condition.name for condition in conditions]) if conditions else ""
+            notes = raw_cart.get("notes")
+            if not notes or notes.strip() == "":
+                notes = condition_names
+            else:
+                notes = notes + (", " + condition_names if condition_names else "")
+            print(f"NOTES : {notes}")
             payload_request = {
                 "order_id": order_id,
                 "order_no": order_no,
                 "cust_name": raw_cart["name"],
                 "phone_number": raw_cart["telepon"],
-                "distance": raw_cart.get("jarak"),
+                "distance": raw_cart.get("jarak", 0.0),
                 "address": raw_cart.get("address", "Tidak diketahui"),
                 "kecamatan": location["kecamatan"],
                 "kelurahan": location["kelurahan"],
@@ -494,7 +490,7 @@ class StrukMaker:
                 "jenis_pengiriman": delivery[
                     str(raw_cart.get("delivery_type_id", "1"))
                 ],
-                "notes": raw_cart.get("notes"),
+                "notes": notes,
                 "struk_url": f"{OLSERA_STRUK}{order_no}",
                 "status": "lunas",
                 "tambahan_waktu": tambahan_waktu,
@@ -528,10 +524,11 @@ class StrukMaker:
                 log_id = log_entry.id
                 log_session.commit()
 
-            print("Mengirim invoice ke grup...")
-            # forward_struk(payload_request)
-            threading.Thread(target=forward_struk, args=(payload_request,)).start()
-            print("Struk berhasil diteruskan ke Grup")
+            if selected_mode["name"] == "CASH" : 
+                print("Langsung Mengirim invoice ke grup..")
+                # forward_struk(payload_request)
+                threading.Thread(target=forward_struk, args=(payload_request,)).start()
+                print("Struk berhasil diteruskan ke Grup")
 
             # return (
             #     order_id,
@@ -710,6 +707,7 @@ class StrukMaker:
         carts = [cart for cart in raw_cart["cells"] if cart.get("combo_id")]
         main_combo = []
         additional_combo = []
+        print("Combo: ",json.dumps(carts,indent=2))
 
         for cart in carts : 
             if cart.get("prodvar_id") : 
@@ -718,6 +716,7 @@ class StrukMaker:
                         "product_id": cart["id"],
                         "combo_id" : cart["combo_id"],
                         "prodvar_id": cart["prodvar_id"],
+                        "variant_id" :cart["variant_id"],
                         "name": cart["name"],
                         "harga_satuan" : cart["harga_satuan"],
                         "qty": cart["qty"],
@@ -729,6 +728,7 @@ class StrukMaker:
                 additional_combo.append(
                     {
                         "product_id": cart["id"],
+                        "prodvar_id" : "UNIQUE",
                         "combo_id" : cart["combo_id"],
                         "name": cart["name"],
                         "qty": cart["qty"],
@@ -740,9 +740,6 @@ class StrukMaker:
             
         # print("Mulai agregasi combo...")
         aggregated_combos = self.aggregate_cart_by_combo(main_combo,db)
-        # print("Selesai AGREGASI COMBO...")
-        # print(f"Hasil aggregasi : {json.dumps(aggregated_combos,indent=2)}")
-        # print("Move cart to order...")
         success,msg = self.move_cart_to_order(
             aggregated_combos,
             order_id,
@@ -799,25 +796,39 @@ class StrukMaker:
             "message" : f"Berhasil Proses per combo dari carts"
         }
 
-
-
-
     def process_qris_payment(self, raw_cart):
-        update_status(
-            order_id=raw_cart["order_id"], status="Z", access_token=access_token
-        )
+        """
+        Untuk QRIS: pastikan item & paket dimasukkan ke order terlebih dahulu,
+        lalu jalankan update payment, status, estimasi, log dan forward struk.
+        """
+        print("Memproses pesanan")
         access_token = get_token_by_outlet_id(raw_cart["outlet_id"])
-        result = self.process_items(
-            raw_cart=raw_cart, order_id=raw_cart["order_id"], access_token=access_token
-        )
-        if not result["success"]:
-            return JSONResponse(
-                content={"success": False, "message": result["message"], "data": {}}
-            )
-        payment_modes = list_payment_modes(
-            order_id=raw_cart["order_id"], access_token=access_token
-        )
-        order_details = fetch_order_details(raw_cart["order_id"], access_token)
+        order_id = raw_cart["order_id"]
+        order_no = raw_cart.get("order_no")
+
+        if not raw_cart.get("items"):
+            print("Struk dibatalkan cart kosong")
+            update_status(order_id=order_id, status="X", access_token=access_token)
+            return JSONResponse(content={"success": False, "message": "Cart kosong, struk dibatalkan", "data": {}})
+
+        # Masukkan combo & item ke order terlebih dahulu (sama seperti handle_order)
+        with get_db_session() as session:
+            combo_cart = [c for c in raw_cart.get("cells", []) if c.get("combo_id")]
+            item_cart = [c for c in raw_cart.get("cells", []) if c not in combo_cart]
+
+            if combo_cart:
+                result = self.process_combo(raw_cart=raw_cart, order_id=order_id, db=session, access_token=access_token)
+                if not result["success"]:
+                    return JSONResponse(content={"success": False, "message": result["message"], "data": {}})
+
+            if item_cart:
+                result = self.process_items(item_cart, order_id, access_token)
+                if not result["success"]:
+                    return JSONResponse(content={"success": False, "message": result["message"], "data": {}})
+
+        # lanjutkan proses pembayaran & finalisasi (sama seperti handle_order)
+        payment_modes = list_payment_modes(order_id=order_id, access_token=access_token)
+        order_details = fetch_order_details(order_id, access_token)
         selected_mode = next(
             (
                 pm
@@ -828,22 +839,14 @@ class StrukMaker:
         )
 
         if not selected_mode:
-            update_status(
-                order_id=raw_cart["order_id"], status="X", access_token=access_token
-            )
-            return JSONResponse(
-                content={
-                    "success": False,
-                    "message": "Metode pembayaran tidak dikenali",
-                    "data": {},
-                }
-            )
+            update_status(order_id=order_id, status="X", access_token=access_token)
+            return JSONResponse(content={"success": False, "message": "Metode pembayaran tidak dikenali", "data": {}})
 
         payment_id = selected_mode["id"]
         total_amount = int(float(order_details["data"]["total_amount"]))
         today_str = datetime.now().strftime("%Y-%m-%d")
         update_payment(
-            order_id=raw_cart["order_id"],
+            order_id=order_id,
             payment_amount=str(total_amount),
             payment_date=today_str,
             payment_mode_id=str(payment_id),
@@ -852,6 +855,7 @@ class StrukMaker:
             payment_seq="0",
             payment_currency_id="IDR",
         )
+        update_status(order_id=order_id, status="Z", access_token=access_token)
 
         with get_db_session() as session:
             outlet = (
@@ -862,27 +866,26 @@ class StrukMaker:
             )
             tambahan_waktu = sum((cond.nilai for cond in outlet.conditions), 0)
             delivery = {"1": "FD", "2": "I", "3": "EX"}
-            location = parse_address(raw_cart["formatted_address"])
+            location = parse_address(raw_cart.get("formatted_address", ""))
             payload_request = {
-                "order_id": raw_cart["order_id"],
-                "order_no": raw_cart["order_no"],
-                "cust_name": raw_cart["name"],
-                "phone_number": raw_cart["telepon"],
+                "order_id": order_id,
+                "order_no": order_no,
+                "cust_name": raw_cart.get("name"),
+                "phone_number": raw_cart.get("telepon"),
                 "distance": raw_cart.get("jarak", 0.0),
                 "address": raw_cart.get("address", "Tidak diketahui"),
-                "kecamatan": location["kecamatan"],
-                "kelurahan": location["kelurahan"],
+                "kecamatan": location.get("kecamatan"),
+                "kelurahan": location.get("kelurahan"),
                 "total_amount": total_amount,
-                "payment_type": raw_cart.get("payment_type", "QRIS WEB"),
-                "jenis_pengiriman": delivery[
-                    str(raw_cart.get("delivery_type_id", "1"))
-                ],
+                "payment_type": raw_cart.get("payment_type", "unknown"),
+                "jenis_pengiriman": delivery.get(str(raw_cart.get("delivery_type_id", "1"))),
                 "notes": raw_cart.get("notes"),
-                "struk_url": f"{OLSERA_STRUK}{raw_cart['order_no']}",
+                "struk_url": f"{OLSERA_STRUK}{order_no}",
                 "status": "lunas",
                 "tambahan_waktu": tambahan_waktu,
                 "from_number": outlet.phone,
             }
+
             max_luncur_str = estimasi_tiba(
                 raw_cart.get("jarak", 0),
                 delivery[str(raw_cart.get("delivery_type_id", "1"))],
@@ -894,31 +897,21 @@ class StrukMaker:
             tambahan_waktu = sum((cond.nilai for cond in outlet.conditions), 0)
             max_luncur_dt += timedelta(minutes=int(float(tambahan_waktu)))
             estimasi_final = max_luncur_dt.strftime("%H:%M")
+
             log_id = None
             with get_db_session() as log_session:
-                log_entry = StrukLog(
-                    order_id=raw_cart["order_id"],
-                    order_no=raw_cart["order_no"],
-                    is_forward=False,
-                )
+                log_entry = StrukLog(order_id=order_id, order_no=order_no, is_forward=False)
                 log_session.add(log_entry)
                 log_session.flush()
                 log_id = log_entry.id
                 log_session.commit()
-            print("Mengirim invoice ke grup...")
-            # forward_struk(payload_request)
-            threading.Thread(target=forward_struk, args=(payload_request,)).start()
-            print("Struk berhasil diteruskan ke Grup")
 
-            return JSONResponse(
-                content={
-                    "success": True,
-                    "message": "Order berhasil diupdate setelah pembayaran QRIS Sukses",
-                    "data": {
-                        "order_id": raw_cart["order_id"],
-                        "order_no": raw_cart["order_no"],
-                        "estimasi_tiba": estimasi_final,
-                        "log_id": log_id,
-                    },
-                }
-            )
+        threading.Thread(target=forward_struk, args=(payload_request,)).start()
+        print("Struk berhasil diteruskan ke Grup")
+        return JSONResponse(
+            content={
+                "success": True,
+                "message": "Order berhasil diupdate setelah pembayaran QRIS Sukses",
+                "data": {"order_id": order_id, "order_no": order_no, "estimasi_tiba": estimasi_final, "log_id": log_id},
+            }
+        )

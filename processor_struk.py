@@ -37,7 +37,7 @@ class OrderRequest(BaseModel):
     formatted_address: str
     telepon: str
     cells: List[Cell]
-    outlet_id: int
+    outlet_id: int = 1
     payment_type: Optional[str] = None
     lunas: Optional[bool] = False
     express_delivery: Optional[bool] = False
@@ -48,7 +48,9 @@ class OrderRequest(BaseModel):
 
 
 class PayloadRequest(BaseModel):
+    user_id: int
     cust_name: str = Field(default="Unknown", description="Nama customer")
+    outlet_id: int = 1
     order_id: Optional[int] = Field(default=None, description="ID order")
     phone_number: str = Field(
         default="Tidak diketahui", description="Nomor telepon customer"

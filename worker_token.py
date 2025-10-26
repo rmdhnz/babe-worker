@@ -14,6 +14,9 @@ load_dotenv()
 # Ambil ENV
 APP_ID = os.getenv("APP_ID_SMG")
 SECRET_KEY = os.getenv("SECRET_KEY_SMG")
+APP_ID_SOLO = os.getenv("APP_ID_SOLO")
+SECRET_KEY_SOLO = os.getenv("SECRET_KEY_SOLO")
+
 DB_HOST = os.getenv("DB_HOST")
 DB_PORT = int(os.getenv("DB_PORT"))
 DB_NAME = os.getenv("DB_DATABASE")
@@ -41,18 +44,46 @@ def get_token_from_file(access_token):
 
 
 def get_access_token(app_id, secret_key):
+    """
+    Ambil access_token dari Olsera dengan retry otomatis jika kena rate-limit (HTTP 429).
+    """
     url = "https://api-open.olsera.co.id/api/open-api/v1/id/token"
     params = {"app_id": app_id, "secret_key": secret_key, "grant_type": "secret_key"}
+    backoff_times = [3, 5, 10]  # detik jeda untuk retry
 
-    try:
-        response = requests.post(url, params=params)
-        response.raise_for_status()
-        return response.json()["access_token"]
-    except requests.exceptions.HTTPError as http_err:
-        print(f"[{datetime.now()}] HTTP error: {http_err} - {response.text}")
-    except Exception as err:
-        print(f"[{datetime.now()}] General error: {err}")
+    for attempt, delay in enumerate(backoff_times, start=1):
+        try:
+            response = requests.post(url, params=params)
+            if response.status_code == 200:
+                data = response.json()
+                token = data.get("access_token")
+                if token:
+                    print(f"[{datetime.now()}] Access token retrieved successfully.")
+                    return token
+                else:
+                    print(f"[{datetime.now()}] Response tidak mengandung access_token: {data}")
+                    return None
+
+            elif response.status_code == 429:
+                print(f"[{datetime.now()}] ⚠️ Rate limited (429). Attempt {attempt}/{len(backoff_times)}. Retry in {delay}s...")
+                time.sleep(delay)
+                continue  # coba lagi
+
+            else:
+                print(f"[{datetime.now()}] HTTP Error {response.status_code}: {response.text}")
+                return None
+
+        except requests.exceptions.RequestException as e:
+            print(f"[{datetime.now()}] Network/Request error: {e}")
+            # jika bukan 429, jangan retry
+            if attempt == len(backoff_times):
+                return None
+            time.sleep(delay)
+
+    # Kalau sampai di sini berarti semua retry gagal
+    print(f"[{datetime.now()}] ❌ Gagal dapat token setelah {len(backoff_times)} percobaan.")
     return None
+
 
 
 # Simpan token ke database
@@ -106,11 +137,13 @@ def insert_token_to_db(token: str, outlet_id, timestamp: str = None):
 # Fungsi utama
 def job():
     print(f"[{datetime.now()}] Fetching access token...")
-    token_smg = get_access_token(APP_ID, SECRET_KEY)
-    token_solo, ts_solo = get_token_from_file(TOKEN_FILE_PATH_SOLO)
-    if token_smg and token_solo:
-        insert_token_to_db(token_smg, OUTLET_ID_SMG)
-        insert_token_to_db(token_solo, OUTLET_ID_SOLO, ts_solo)
+    token_solo = get_access_token(APP_ID_SOLO, SECRET_KEY_SOLO)
+    while not token_solo  : 
+        print(f"[{datetime.now()}] Retrying to fetch token for SOLO...")
+        token_solo = get_access_token(APP_ID_SOLO, SECRET_KEY_SOLO)
+    
+    if token_solo: 
+        insert_token_to_db(token_solo, OUTLET_ID_SOLO)
     else:
         print(f"[{datetime.now()}] Failed to retrieve token.")
 
@@ -124,7 +157,7 @@ def run_scheduler():
 
 if __name__ == "__main__":
     print(
-        f"[{datetime.now()}] Worker started for outlet '{OUTLET_SEMARANG} and {OUTLET_SOLO}'. Interval: 240 minutes."
+        f"[{datetime.now()}] Worker started for outlet Solo. Interval: 240 minutes."
     )
     job()  # Run once on start
     schedule.every(240).minutes.do(job)

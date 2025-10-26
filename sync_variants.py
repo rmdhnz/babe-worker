@@ -68,9 +68,10 @@ def sync_product_variants(outlet_id: int):
 def job():
     try:
         print("START UPDATE VARIANT")
-        all_outlets = get_all_outlets().json()
-        for outlet in all_outlets:
-            sync_product_variants(outlet_id=outlet["id"])
+        # all_outlets = get_all_outlets().json()
+        # for outlet in all_outlets:
+            # sync_product_variants(outlet_id=outlet["id"])
+        sync_product_variants(outlet_id=1)
         print("ANJAY KELAR")
     except Exception as e:
         print(f"[ERROR] [{e}]")
@@ -85,5 +86,5 @@ def run_scheduler():
 if __name__ == "__main__":
     print("Worker Variant is running... ")
     job()
-    schedule.every().day.at("00:30").do(job)
+    schedule.every(10).minutes.do(job)
     threading.Thread(target=run_scheduler).start()

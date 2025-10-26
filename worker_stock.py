@@ -9,12 +9,10 @@ from modules.crud_utility import get_all_outlets
 def job_stock():
     try:
         print("=== [STOCK SYNC - 5 MINUTES] ===")
-        all_outlets = get_all_outlets().json()
-        for outlet in all_outlets:
-            outlet_id = outlet["id"]
-            print(f">>> Sinkronisasi Outlet ID: {outlet_id}")
-            sync_product_stocks(outlet_id=outlet_id)
-            sync_combo_stocks(outlet_id=outlet_id)
+        outlet_id = 1
+        print(f">>> Sinkronisasi Outlet ID: {outlet_id}")
+        sync_product_stocks(outlet_id=outlet_id)
+        sync_combo_stocks(outlet_id=outlet_id)
     except Exception as e:
         print(f"[ERROR][STOCK SYNC] {e}")
 

@@ -29,9 +29,7 @@ def sync_combos(outlet_id: int):
     while True:
         result = combo_with_product(token, page, per_page=100)
         if result is None:
-            print(
-                f"[{outlet_name}] [WARN] Retrying page {page} after 20s (429 or error)"
-            )
+            print(f"[{outlet_name}] [WARN] Retrying page {page} after 20s (429 or error)")
             time.sleep(20)
             continue
 
@@ -52,42 +50,44 @@ def sync_combos(outlet_id: int):
                 name = combo["name"]
                 description = combo.get("description")
                 image = combo.get("photo_md")
-                price = float(
-                    combo.get("sell_price_pos") or combo.get("max_sell_price") or 0
-                )
+                price = float(combo.get("sell_price_pos") or combo.get("max_sell_price") or 0)
 
-                # Upsert combo
-                cursor.execute(
-                    """
-                    INSERT INTO combos (olsera_id, outlet_id, name, description, image, price, created_at, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW())
-                    ON DUPLICATE KEY UPDATE
-                    name=VALUES(name), description=VALUES(description), image=VALUES(image),
-                    price=VALUES(price), updated_at=NOW()
-                """,
-                    (olsera_combo_id, outlet_id, name, description, image, price),
-                )
-
-                # Get local combo_id
+                # === Cek apakah combo sudah ada ===
                 cursor.execute(
                     "SELECT id FROM combos WHERE olsera_id = %s AND outlet_id = %s",
                     (olsera_combo_id, outlet_id),
                 )
-                res = cursor.fetchone()
-                if not res:
-                    continue
-                combo_db_id = res[0]
+                existing = cursor.fetchone()
 
-                # === Ambil langsung items dari response baru ===
+                if existing:
+                    combo_db_id = existing[0]
+                    # Update data combo
+                    cursor.execute(
+                        """
+                        UPDATE combos
+                        SET name=%s, description=%s, image=%s, price=%s, updated_at=NOW()
+                        WHERE id=%s
+                        """,
+                        (name, description, image, price, combo_db_id),
+                    )
+                else:
+                    # Insert baru
+                    cursor.execute(
+                        """
+                        INSERT INTO combos (olsera_id, outlet_id, name, description, image, price, created_at, updated_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW())
+                        """,
+                        (olsera_combo_id, outlet_id, name, description, image, price),
+                    )
+                    combo_db_id = cursor.lastrowid
+
+                # === Ambil items langsung dari response ===
                 items = combo.get("items", [])
-
                 if not items:
                     continue
 
                 # Bersihkan isi lama
-                cursor.execute(
-                    "DELETE FROM combo_product WHERE combo_id = %s", (combo_db_id,)
-                )
+                cursor.execute("DELETE FROM combo_product WHERE combo_id = %s", (combo_db_id,))
 
                 pivotData = []
                 for item in items:
@@ -97,25 +97,24 @@ def sync_combos(outlet_id: int):
                     if not olsera_prod_id or qty <= 0:
                         continue
 
-                    # Ambil product_id lokal
                     cursor.execute(
                         "SELECT id FROM products WHERE olsera_id = %s AND outlet_id = %s",
                         (olsera_prod_id, outlet_id),
                     )
                     product_res = cursor.fetchone()
                     if not product_res:
-                        print(
-                            f"[{outlet_name}] [SKIP] Produk ID {olsera_prod_id} tidak ditemukan."
-                        )
+                        print(f"[{outlet_name}] [SKIP] Produk ID {olsera_prod_id} tidak ditemukan.")
                         continue
 
                     local_product_id = product_res[0]
-                    pivotData.append((combo_db_id, local_product_id,item_id,olsera_prod_id,olsera_combo_id, qty))
+                    pivotData.append((combo_db_id, local_product_id, item_id, olsera_prod_id, olsera_combo_id, qty))
 
-                # Masukkan isi baru
                 if pivotData:
                     cursor.executemany(
-                        "INSERT INTO combo_product (combo_id, product_id,item_id,olsera_prod_id,olsera_combo_id, qty) VALUES (%s, %s, %s,%s,%s,%s)",
+                        """
+                        INSERT INTO combo_product (combo_id, product_id, item_id, olsera_prod_id, olsera_combo_id, qty)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                        """,
                         pivotData,
                     )
 
@@ -126,27 +125,20 @@ def sync_combos(outlet_id: int):
                     FROM combo_product cp
                     JOIN product_stocks ps ON cp.product_id = ps.product_id
                     WHERE cp.combo_id = %s
-                """,
+                    """,
                     (combo_db_id,),
                 )
                 items = cursor.fetchall()
 
-                stock_counts = []
-                for product_id, qty, stock_qty in items:
-                    if qty <= 0:
-                        continue
-                    count = stock_qty // qty
-                    stock_counts.append(count)
-
+                stock_counts = [stock_qty // qty for _, qty, stock_qty in items if qty > 0]
                 combo_stock = min(stock_counts) if stock_counts else 0
 
                 cursor.execute(
                     """
-                    INSERT INTO combo_stocks
-                     (combo_id, stock_qty, created_at, updated_at)
+                    INSERT INTO combo_stocks (combo_id, stock_qty, created_at, updated_at)
                     VALUES (%s, %s, NOW(), NOW())
                     ON DUPLICATE KEY UPDATE stock_qty = VALUES(stock_qty), updated_at = NOW()
-                """,
+                    """,
                     (combo_db_id, combo_stock),
                 )
 
@@ -161,6 +153,7 @@ def sync_combos(outlet_id: int):
         page += 1
 
     print(f"[{outlet_name}] Total combo tersinkronisasi: {total_synced}")
+
     
 def sync_combo_stocks(outlet_id: int):
     conn = get_db_connection()
