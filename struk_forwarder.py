@@ -82,12 +82,14 @@ def forward_struk(payload: dict):
         max_luncur_dt = datetime.combine(datetime.today(), datetime.strptime(max_luncur_str, "%H:%M").time())
         max_luncur_dt += timedelta(minutes=int(float(payload.get("tambahan_waktu", 0))))
         max_luncur = max_luncur_dt.strftime("%H:%M")
+        max_luncur_fd =  (datetime.now() + timedelta(minutes=35)).strftime('%H:%M')
 
-        max_luncur_line = (
-            f"MAKSIMAL DILUNCURKAN DARI GUDANG: {max_luncur}"
-            if payload.get("jenis_pengiriman") == "FD"
-            else f"ESTIMASI SAMPAI: {max_luncur}"
+        max_luncur_fd = (
+            f"MAKSIMAL DILUNCURKAN DARI GUDANG: {max_luncur_fd}"
+            if payload.get("jenis_pengiriman") == "FD" else ""
         )
+        max_luncur_line = f"ESTIMASI SAMPAI: {max_luncur}"
+
     except Exception as e:
         print(f"[ERROR] Gagal hitung estimasi tiba: {e}")
         max_luncur_line = "Estimasi tidak tersedia"
@@ -102,6 +104,7 @@ def forward_struk(payload: dict):
             f"Nomor Telepon: {format_phone_number(payload.get('phone_number', 'Tidak diketahui'))}\n",
             f"Alamat: {payload.get('address', 'Tidak diketahui')}",
             "",
+            max_luncur_fd.strip(),
             max_luncur_line.strip(),
             f"Jarak: {distance_str} km (*{payload.get('kelurahan', 'Unk. Kelurahan')}, {payload.get('kecamatan', '').replace('Kecamatan ', '').replace('Kec. ', '').replace('kecamatan', '').replace('kec.', '')}*)\n\n",
             "",

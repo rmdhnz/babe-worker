@@ -31,7 +31,7 @@ def job_daily():
         for id in outlet_id : 
             outlet  = get_outlet_name(id)
             print(f"Syncing outlet: {outlet}")
-            sync_products_all(id)
+            # sync_products_all(id)
             sync_combos(id)
             
 

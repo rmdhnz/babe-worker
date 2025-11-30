@@ -1,5 +1,37 @@
-from fastapi import FastAPI
+
+
+
+@app.post("/process_after_qris")
+def process_after_qris(order: PayloadRequest):
+    payload_dict = order.dict()
+    response = agent.process_qris_payment(payload_dict)
+    return response
+
+
+@app.post("/forward_struk")
+def forward_order(order: PayloadRequest):
+    payload_dict = order.dict()
+    response = forward_struk(payload_dict)
+    return response
+
+
+
+
+@app.post("/estimation_time")
+def estimation_time(payload: PayloadEstimation):
+    # Buat estimasi tiba
+    max_luncur_str = estimasi_tiba(
+        payload.get("distance", 0),
+        payload.get("jenis_pengiriman", 0),
+        datetime.now(),
+    )
+
+    max_luncur_dt = datetime.combine(
+        datetime.today(), datetime.strptime(max_luncur_str, "%H:%M").time()
+    )
+    maxfrom fastapi import FastAPI,Depends
 from fastapi.responses import JSONResponse
+from modules.token_provider import get_all_tokens
 from pydantic import BaseModel, Field
 from typing import List, Literal, Optional
 from convert_rawcart_to_ord import StrukMaker
@@ -8,6 +40,7 @@ from modules.maps_utility import estimasi_tiba
 from datetime import datetime, timedelta
 from struk_forwarder import forward_struk
 from modules.sqlalchemy_setup import get_db_session
+from modules.security import check_api_key
 from sqlalchemy import select
 from modules.models_sqlalchemy import Combo,Product,combo_product
 app = FastAPI()
@@ -85,48 +118,24 @@ class PayloadEstimation(BaseModel):
 
 agent = StrukMaker()
 
+@app.get("/token-caches",dependencies=[Depends(check_api_key)])
+def get_token() :  
+    data = get_all_tokens()
+    return data
+
 
 @app.post("/create_struk")
 def create_order(order: OrderRequest):
     payload_dict = order.dict()
     response = agent.handle_order(payload_dict)
-    return response
-
-
-@app.post("/process_after_qris")
-def process_after_qris(order: PayloadRequest):
-    payload_dict = order.dict()
-    response = agent.process_qris_payment(payload_dict)
-    return response
-
-
-@app.post("/forward_struk")
-def forward_order(order: PayloadRequest):
-    payload_dict = order.dict()
-    response = forward_struk(payload_dict)
-    return response
-
-
-
-
-@app.post("/estimation_time")
-def estimation_time(payload: PayloadEstimation):
-    # Buat estimasi tiba
-    max_luncur_str = estimasi_tiba(
-        payload.get("distance", 0),
-        payload.get("jenis_pengiriman", 0),
-        datetime.now(),
-    )
-
-    max_luncur_dt = datetime.combine(
-        datetime.today(), datetime.strptime(max_luncur_str, "%H:%M").time()
-    )
-    max_luncur_dt += timedelta(minutes=int(float(payload.get("tambahan_waktu", 0))))
+    return response_luncur_dt += timedelta(minutes=int(float(payload.get("tambahan_waktu", 0))))
 
     max_luncur = max_luncur_dt.strftime("%H:%M")
     return {
         "estimasi_tiba": max_luncur,
     }
+
+
 
 @app.get("/tes")
 def tes():

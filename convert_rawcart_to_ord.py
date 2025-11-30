@@ -62,6 +62,8 @@ class StrukMaker:
             print("Move items to order...")
 
             # Tambahkan produk ke order
+            print("Produk Itemz: ")
+            print(json.dumps(cart,indent=2))
             for idx,item in enumerate(cart):
                 prodvar_id = item["prodvar_id"]
                 qty = item["qty"]
@@ -71,7 +73,7 @@ class StrukMaker:
                     # )
                     discount = cart[idx]["disc"] if idx < len(cart) else 0.0
                     print("Mencoba API Baru...")
-                    success,resp = add_prod_with_update_detail(order_id=str(order_id),product_id=str(prodvar_id),quantity=qty,disc=discount,price=item["harga_satuan"],                    access_token=access_token,note="Order web")
+                    success,resp = add_prod_with_update_detail(order_id=str(order_id),product_id=str(prodvar_id),quantity=qty,disc=discount,price=item["harga_satuan"],access_token=access_token,note="Order web")
                     if not success:
                         print(
                             msg := f"Stok produk {item['name']} tidak mencukupi. Struk dibatalkan"
@@ -107,7 +109,7 @@ class StrukMaker:
                     )
                     if not success : 
                         print(
-                            msg := f"Stok produk {combo['name']} tidak mencukupi. Struk dibatalkan"
+                            msg := f"Stok Paket {combo['name']} tidak mencukupi. Struk dibatalkan"
                         )
                         return False, msg
                 except Exception as e: 
@@ -295,7 +297,7 @@ class StrukMaker:
                 "items": [
                     {
                         "id": meta["item_id"],
-                        "product_id": olsera_pid,   # 🔑 pakai olsera_prod_id
+                        "product_id": olsera_pid,   
                         "name": meta["name"],
                         "product_variant_id": next((i.get("variant_id") for i in combo_cart_items if i["product_id"] == olsera_pid), None),  # 🔑 match ke cart.id
                         "qty": meta["req_qty"] * combo_qty,
@@ -399,6 +401,7 @@ class StrukMaker:
             combo_cart = [combo for combo in raw_cart["cells"] if combo.get("combo_id")]
             item_cart = [item for item in raw_cart["cells"] if item not in combo_cart]
 
+
             if combo_cart :   
                 result = self.process_combo(
                     raw_cart=raw_cart,
@@ -416,6 +419,7 @@ class StrukMaker:
                     )
             
             if item_cart :
+                print("Item Cart : ", json.dumps(item_cart,indent=2))
                 result = self.process_items(item_cart, order_id, access_token)
                 if not result["success"]:
                     return JSONResponse(
@@ -458,17 +462,17 @@ class StrukMaker:
                 payment_seq="0",
                 payment_currency_id="IDR",
             )
-            update_status(order_id=order_id, status="Z", access_token=access_token)
+            update_status(order_id=order_id, status="A", access_token=access_token)
             outlet = (
                 session.query(Outlet)
                 .options(joinedload(Outlet.conditions))
-                .filter(Outlet.id == raw_cart["outlet_id"])
+                .filter(Outlet.id == 1)
                 .first()
             )
             tambahan_waktu = sum((cond.nilai for cond in outlet.conditions), 0)
             delivery = {"1": "FD", "2": "I", "3": "EX"}
             location = parse_address(raw_cart["formatted_address"])
-            conditions = session.query(Outlet).options(joinedload(Outlet.conditions)).filter(Outlet.id == raw_cart["outlet_id"]).first().conditions
+            conditions = outlet.conditions
             condition_names = ", ".join([condition.name for condition in conditions]) if conditions else ""
             notes = raw_cart.get("notes")
             if not notes or notes.strip() == "":
@@ -555,7 +559,7 @@ class StrukMaker:
         main_product = []
         additional_product = []
         for cart in carts:
-            if cart.get("prodvar_id"):
+            if cart.get("prodvar_id") and cart.get("prodvar_id") != "":
                 main_product.append(
                     {
                         "product_id": cart["id"],
@@ -582,6 +586,9 @@ class StrukMaker:
 
         aggregated_carts = self.aggregate_cart_by_prodvar(main_product)
         print("SELESAI AGREGASI...")
+        print("Main product : ", json.dumps(main_product,indent=2))
+        print("Additional product : ", json.dumps(additional_product,indent=2))
+
         success, msg = self.move_cart_to_order(
             aggregated_carts, order_id, access_token=access_token
         )
@@ -686,9 +693,10 @@ class StrukMaker:
                         update_status(
                             order_id=order_id, status="X", access_token=access_token
                         )
+                        print("Error : ", msg)
                         return {
-                            "success": True,
-                            "message": f"Stock Produk {item} tidak mencukupi",
+                            "success": False,
+                            "message": f"Stock Produk Tambahanzzz {add_item['name']} tidak mencukupi",
                         }
 
             except Exception as e:

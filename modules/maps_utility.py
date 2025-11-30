@@ -505,6 +505,12 @@ def waktu_siang(dt: datetime):
 
 def waktu_malam(dt: datetime):
     return dt.hour >= 20 or dt.hour < 4
+    
+def waktu_siang_fd(dt: datetime):
+    return dt.hour >= 10 and dt.hour < 18
+
+def waktu_malam_fd(dt: datetime):
+    return dt.hour >= 18 or dt.hour < 4
 
 
 def estimasi_tiba(jarak_km: float, tipe: str, waktu_mulai: datetime) -> datetime:
@@ -524,7 +530,10 @@ def estimasi_tiba(jarak_km: float, tipe: str, waktu_mulai: datetime) -> datetime
 
     # Hitung waktu tambahan
     if tipe == "FD":
-        waktu_tambah = timedelta(minutes=35)
+        if waktu_siang_fd(waktu_mulai) : 
+            waktu_tambah = timedelta(minutes=80)
+        else : 
+            waktu_tambah = timedelta(minutes=60)
     elif tipe == "I":
         if km_index >= len(instan):
             raise ValueError("Jarak terlalu jauh untuk pengiriman Instan (maks 20 km)")

@@ -1,6 +1,9 @@
 import time
 from modules.crud_utility import *
 from modules.olsera_service import *
+from modules.models_sqlalchemy import Product, Merchandise
+from modules.sqlalchemy_setup import get_db_session
+from datetime import datetime
 
 allowed_klasifikasi = [
     "Inventory Produk",
@@ -66,6 +69,62 @@ def sync_ongkir(outlet_id: int):
 
     print(f"[{outlet_name}] Total produk ONGKIR tersinkronisasi: {total_synced}")
 
+import time
+from modules.crud_utility import get_db_connection
+
+def copy_product_to_merchandises(outlet_id: int):
+    """
+    Menyalin produk (yang bisa ditukar) dari tabel products ke tabel merchandises.
+    Menggunakan ORM SQLAlchemy.
+    """
+    with get_db_session() as session:
+        total_copied = 0
+
+        # Ambil produk yang tukar = 1
+        products = (
+            session.query(Product)
+            .filter(Product.outlet_id == outlet_id)
+            .all()
+        )
+
+        if not products:
+            print(f"[Outlet {outlet_id}] Tidak ada produk untuk disalin ke merchandises.")
+            return
+
+        for p in products:
+            existing = (
+                session.query(Merchandise)
+                .filter(Merchandise.olsera_id == p.olsera_id)
+                .filter(Merchandise.outlet_id == outlet_id)
+                .first()
+            )
+
+            if existing:
+                # Update data yang sudah ada
+                existing.name = p.name
+                existing.koin = str(p.koin or 0)
+                existing.tukar = True
+                existing.image = p.image
+                existing.product_type_id = getattr(p, "product_type_id", 1)
+                existing.updated_at = datetime.utcnow()
+            else:
+                # Insert data baru
+                new_merch = Merchandise(
+                    olsera_id=p.olsera_id,
+                    outlet_id=outlet_id,
+                    name=p.name,
+                    koin=str(p.koin or 0),
+                    tukar=True,
+                    product_type_id=getattr(p, "product_type_id", 1),
+                    image=p.image,
+                    created_at=datetime.utcnow(),
+                    updated_at=datetime.utcnow(),
+                )
+                session.add(new_merch)
+
+            total_copied += 1
+
+        print(f"[Outlet {outlet_id}] Total produk tersalin ke merchandises: {total_copied}")
 
 def sync_merchandises(outlet_id: int):
     token = get_token_by_outlet_id(outlet_id)
@@ -97,14 +156,16 @@ def sync_merchandises(outlet_id: int):
 
                 olsera_id = item["id"]
                 name = item["name"]
+                image = item.get("photo_md")
                 # Upsert ke tabel products
                 cursor.execute(
                     """
-                    INSERT INTO merchandises (olsera_id, outlet_id, name, koin, created_at, updated_at)
-                    VALUES (%s, %s, %s, %s, NOW(), NOW())
+                    INSERT INTO merchandises (olsera_id, outlet_id, name, koin,image, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s,%s, NOW(), NOW())
                     ON DUPLICATE KEY UPDATE 
                         name = VALUES(name),
                         koin = VALUES(koin),
+                        image = VALUES(image),
                         updated_at = NOW()
                     """,
                     (
@@ -112,6 +173,7 @@ def sync_merchandises(outlet_id: int):
                         outlet_id,
                         name,
                         0,  # Koin default 0 untuk merchandise
+                        image,
                     ),
                 )
                 total_synced += 1

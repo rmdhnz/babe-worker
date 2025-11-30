@@ -44,6 +44,21 @@ outlet_condition = Table(
     Column("condition_id", BigInteger, ForeignKey("conditions.id"), primary_key=True),
 )
 
+class Merchandise(Base):
+    __tablename__ = "merchandises"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    olsera_id = Column(BigInteger, nullable=True)
+    outlet_id = Column(BigInteger, nullable=False)
+    name = Column(String(255), nullable=False)
+    koin = Column(String(255), nullable=True)
+    tukar = Column(Boolean, default=False)
+    image= Column(String(255))
+    product_type_id = Column(Integer, default=1)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 
 class Combo(Base):
     __tablename__ = "combos"
@@ -59,6 +74,12 @@ class Combo(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     products = relationship("Product", secondary=combo_product, back_populates="combos")
+
+class Token(Base)  : 
+    __tablename__ = "token_caches"
+    id = Column(Integer,primary_key=True)
+    token = Column(String(255))
+    outlet_id = Column(Integer)
 
 
 class Product(Base):
