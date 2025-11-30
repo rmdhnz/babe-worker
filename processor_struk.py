@@ -1,35 +1,4 @@
-
-
-
-@app.post("/process_after_qris")
-def process_after_qris(order: PayloadRequest):
-    payload_dict = order.dict()
-    response = agent.process_qris_payment(payload_dict)
-    return response
-
-
-@app.post("/forward_struk")
-def forward_order(order: PayloadRequest):
-    payload_dict = order.dict()
-    response = forward_struk(payload_dict)
-    return response
-
-
-
-
-@app.post("/estimation_time")
-def estimation_time(payload: PayloadEstimation):
-    # Buat estimasi tiba
-    max_luncur_str = estimasi_tiba(
-        payload.get("distance", 0),
-        payload.get("jenis_pengiriman", 0),
-        datetime.now(),
-    )
-
-    max_luncur_dt = datetime.combine(
-        datetime.today(), datetime.strptime(max_luncur_str, "%H:%M").time()
-    )
-    maxfrom fastapi import FastAPI,Depends
+from fastapi import FastAPI,Depends
 from fastapi.responses import JSONResponse
 from modules.token_provider import get_all_tokens
 from pydantic import BaseModel, Field
@@ -128,7 +97,38 @@ def get_token() :
 def create_order(order: OrderRequest):
     payload_dict = order.dict()
     response = agent.handle_order(payload_dict)
-    return response_luncur_dt += timedelta(minutes=int(float(payload.get("tambahan_waktu", 0))))
+    return response
+
+
+@app.post("/process_after_qris")
+def process_after_qris(order: PayloadRequest):
+    payload_dict = order.dict()
+    response = agent.process_qris_payment(payload_dict)
+    return response
+
+
+@app.post("/forward_struk")
+def forward_order(order: PayloadRequest):
+    payload_dict = order.dict()
+    response = forward_struk(payload_dict)
+    return response
+
+
+
+
+@app.post("/estimation_time")
+def estimation_time(payload: PayloadEstimation):
+    # Buat estimasi tiba
+    max_luncur_str = estimasi_tiba(
+        payload.get("distance", 0),
+        payload.get("jenis_pengiriman", 0),
+        datetime.now(),
+    )
+
+    max_luncur_dt = datetime.combine(
+        datetime.today(), datetime.strptime(max_luncur_str, "%H:%M").time()
+    )
+    max_luncur_dt += timedelta(minutes=int(float(payload.get("tambahan_waktu", 0))))
 
     max_luncur = max_luncur_dt.strftime("%H:%M")
     return {
