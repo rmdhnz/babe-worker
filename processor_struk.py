@@ -12,6 +12,7 @@ from modules.sqlalchemy_setup import get_db_session
 from modules.security import check_api_key
 from sqlalchemy import select
 from modules.models_sqlalchemy import Combo,Product,combo_product
+from app.queue_publisher import publish_order
 app = FastAPI()
 
 
@@ -93,11 +94,16 @@ def get_token() :
     return data
 
 
+# @app.post("/create_struk")
+# def create_order(order: OrderRequest):
+#     payload_dict = order.dict()
+#     response = agent.handle_order(payload_dict)
+#     return response
+
 @app.post("/create_struk")
-def create_order(order: OrderRequest):
-    payload_dict = order.dict()
-    response = agent.handle_order(payload_dict)
-    return response
+def enqueue_order(payload: OrderRequest):
+    publish_order(payload.dict())
+    return {"success": True, "message": "Order berhasil masuk ke antrian"}
 
 
 @app.post("/process_after_qris")

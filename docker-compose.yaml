@@ -1,0 +1,57 @@
+services:
+  fastapi:
+    build: ./app
+    container_name: fastapi_order
+    restart: always
+    ports:
+      - "8005:8000"
+    depends_on:
+      - rabbitmq
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq_order
+    restart: always
+    ports:
+      - "25672:15672" # ganti UI ke port 25672
+
+  mysql:
+    image: mysql:8
+    container_name: baus_mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_HOST}
+      MYSQL_PORT: ${DB_PORT}
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  worker:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    command: python queue_consumer.py
+    restart: always
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: ${DB_DATABASE}
+      DB_USER: ${DB_USERNAME}
+      DB_PASS: ${DB_PASSWORD}
+      RABBITMQ_HOST: rabbitmq_order
+      RABBITMQ_USER: guest
+      RABBITMQ_PASS: guest
+
+    volumes:
+      - ./app:/app
+
+    depends_on:
+      - rabbitmq
+      - mysql
+
+volumes:
+  mysql_data:
