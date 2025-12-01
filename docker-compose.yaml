@@ -7,6 +7,10 @@ services:
       - "8005:8000"
     depends_on:
       - rabbitmq
+    volumes:
+      - ./app:/app
+    env_file:
+      - .env
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -26,9 +30,11 @@ services:
       MYSQL_USER: ${DB_USERNAME}
       MYSQL_PASSWORD: ${DB_PASSWORD}
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+    env_file:
+      - .env
 
   worker:
     build:
@@ -52,6 +58,9 @@ services:
     depends_on:
       - rabbitmq
       - mysql
+
+    env_file:
+      - .env
 
 volumes:
   mysql_data:

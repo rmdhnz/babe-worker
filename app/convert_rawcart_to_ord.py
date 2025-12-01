@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from struk_forwarder import forward_struk
 from sqlalchemy.orm import joinedload,Session
 from sqlalchemy import select
+from modules.baus_utility import get_access_token
 
 load_dotenv()
 URL_DRIVER = os.getenv("URL_LIST_DRIVER")
@@ -338,7 +339,7 @@ class StrukMaker:
                         "total_driver": total_driver,
                     }
                 )
-        access_token = get_token_by_outlet_id(raw_cart["outlet_id"])
+        access_token = get_access_token()["token"]
         with get_db_session() as session:
             user = session.query(User).filter(User.id == raw_cart["user_id"]).first()
             if raw_cart["payment_type"] == "Cash" : 
