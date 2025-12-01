@@ -61,26 +61,29 @@ def start_consumer():
     connection = connect_rabbitmq()
     channel = connection.channel()
 
+    # WAJIB: declare queue dulu
+    # channel.queue_declare(queue=RABBITMQ_QUEUE, durable=True)
     channel.queue_declare(
-            queue="order_queue",
-            durable=True,
-            arguments={
-                "x-dead-letter-exchange": "",
-                "x-dead-letter-routing-key": "order_dlq"
-            }
-        )
-    channel.queue_declare(queue="order_dlq", durable=True)
+    queue=RABBITMQ_QUEUE,
+    durable=True,
+    arguments={
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "order_dlq",
+    }
+)
 
     print(f"[Worker] Listening for messages on '{RABBITMQ_QUEUE}' ...")
+
     channel.basic_qos(prefetch_count=1)
+    channel.queue_declare(queue="order_dlq", durable=True)
     channel.basic_consume(queue=RABBITMQ_QUEUE, on_message_callback=callback)
 
     try:
         channel.start_consuming()
     except KeyboardInterrupt:
-        print("[Worker] STOP signal received — closing connection.")
         channel.stop_consuming()
         connection.close()
+
 
 
 if __name__ == "__main__":

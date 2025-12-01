@@ -7,18 +7,21 @@ services:
       - "8005:8000"
     depends_on:
       - rabbitmq
-
+  
   rabbitmq:
     image: rabbitmq:3-management
     container_name: rabbitmq_order
     restart: always
     ports:
-      - "25672:15672" # ganti UI ke port 25672
+      - "5673:5672"  # ganti UI ke port 25672
+      - "25672:15672"
 
   mysql:
     image: mysql:8
     container_name: baus_mysql
     restart: always
+    env_file: 
+      - .env
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_HOST}
       MYSQL_PORT: ${DB_PORT}
@@ -26,7 +29,7 @@ services:
       MYSQL_USER: ${DB_USERNAME}
       MYSQL_PASSWORD: ${DB_PASSWORD}
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
 
@@ -36,6 +39,8 @@ services:
       dockerfile: Dockerfile
     command: python queue_consumer.py
     restart: always
+    env_file: 
+      - .env
     environment:
       DB_HOST: mysql
       DB_PORT: 3306
